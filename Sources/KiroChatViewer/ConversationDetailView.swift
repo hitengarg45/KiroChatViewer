@@ -103,20 +103,30 @@ struct ConversationDetailView: View {
             fullText.append(NSAttributedString(string: message.content + "\n\n", attributes: bodyAttrs))
         }
         
-        // Create PDF from attributed string
+        // Calculate required height for all content
+        let pageWidth: CGFloat = 512 // 612 - 50 margin on each side
+        let textContainer = NSTextContainer(size: NSSize(width: pageWidth, height: .greatestFiniteMagnitude))
+        let layoutManager = NSLayoutManager()
+        let textStorage = NSTextStorage(attributedString: fullText)
+        
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        
+        layoutManager.glyphRange(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        
+        // Create text view with proper height for all content
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: pageWidth, height: usedRect.height))
+        textView.textStorage?.setAttributedString(fullText)
+        
+        // Create PDF with proper print info
         let printInfo = NSPrintInfo.shared
-        printInfo.paperSize = NSSize(width: 612, height: 792) // US Letter
+        printInfo.paperSize = NSSize(width: 612, height: 792)
         printInfo.topMargin = 50
         printInfo.bottomMargin = 50
         printInfo.leftMargin = 50
         printInfo.rightMargin = 50
-        
-        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 512, height: 692))
-        textView.textStorage?.setAttributedString(fullText)
-        
-        let printOperation = NSPrintOperation(view: textView, printInfo: printInfo)
-        printOperation.showsPrintPanel = false
-        printOperation.showsProgressPanel = false
+        printInfo.isVerticallyCentered = false
         
         return textView.dataWithPDF(inside: textView.bounds)
     }
@@ -145,7 +155,9 @@ struct MessageView: View {
 }
 
 struct TextDocument: FileDocument {
-    static var readableContentTypes = [UTType.plainText]
+    static var readableContentTypes: [UTType] = [.plainText]
+    static var writableContentTypes: [UTType] = [.plainText]
+    
     var text: String
     
     init(text: String) {
@@ -153,16 +165,24 @@ struct TextDocument: FileDocument {
     }
     
     init(configuration: ReadConfiguration) throws {
-        text = ""
+        if let data = configuration.file.regularFileContents,
+           let string = String(data: data, encoding: .utf8) {
+            text = string
+        } else {
+            text = ""
+        }
     }
     
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: text.data(using: .utf8)!)
+        let data = text.data(using: .utf8)!
+        return FileWrapper(regularFileWithContents: data)
     }
 }
 
 struct PDFDataDocument: FileDocument {
-    static var readableContentTypes = [UTType.pdf]
+    static var readableContentTypes: [UTType] = [.pdf]
+    static var writableContentTypes: [UTType] = [.pdf]
+    
     var data: Data
     
     init(data: Data) {
@@ -170,7 +190,11 @@ struct PDFDataDocument: FileDocument {
     }
     
     init(configuration: ReadConfiguration) throws {
-        data = Data()
+        if let fileData = configuration.file.regularFileContents {
+            data = fileData
+        } else {
+            data = Data()
+        }
     }
     
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
