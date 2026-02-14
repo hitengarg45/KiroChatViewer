@@ -4,6 +4,7 @@ struct ContentView: View {
     @StateObject private var db = DatabaseManager()
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
+    @AppStorage("appearance") private var appearance: String = "system"
     
     var filteredConversations: [Conversation] {
         if searchText.isEmpty {
@@ -24,6 +25,20 @@ struct ContentView: View {
             .searchable(text: $searchText, prompt: "Search conversations")
             .navigationTitle("Kiro Chats")
             .toolbar {
+                Menu {
+                    Button(action: { appearance = "system" }) {
+                        Label("System", systemImage: appearance == "system" ? "checkmark" : "")
+                    }
+                    Button(action: { appearance = "light" }) {
+                        Label("Light", systemImage: appearance == "light" ? "checkmark" : "")
+                    }
+                    Button(action: { appearance = "dark" }) {
+                        Label("Dark", systemImage: appearance == "dark" ? "checkmark" : "")
+                    }
+                } label: {
+                    Label("Appearance", systemImage: "circle.lefthalf.filled")
+                }
+                
                 Button(action: db.loadConversations) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -36,6 +51,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
         .onAppear(perform: db.loadConversations)
         .alert("Error", isPresented: .constant(db.error != nil)) {
             Button("OK") { db.error = nil }
