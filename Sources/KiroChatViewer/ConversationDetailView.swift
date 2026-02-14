@@ -1,19 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import MarkdownUI
-
-enum ExportFormat {
-    case markdown
-    case pdf
-}
+import AppKit
 
 struct ConversationDetailView: View {
     let conversation: Conversation
-    @State private var exportFormat: ExportFormat?
     @State private var showMarkdownExporter = false
     @State private var showPDFExporter = false
-    @State private var markdownURL: URL?
-    @State private var pdfURL: URL?
+    @State private var pdfData: Data?
     
     var body: some View {
         ScrollView {
@@ -40,7 +34,7 @@ struct ConversationDetailView: View {
         .toolbar {
             Menu("Export") {
                 Button("Export as Markdown") {
-                    exportToMarkdown()
+                    showMarkdownExporter = true
                 }
                 Button("Export as PDF") {
                     exportToPDF()
@@ -52,16 +46,14 @@ struct ConversationDetailView: View {
             document: TextDocument(text: generateMarkdown()),
             contentType: .plainText,
             defaultFilename: "conversation.md"
-        ) { _ in
-            markdownURL = nil
-        }
+        ) { _ in }
         .fileExporter(
             isPresented: $showPDFExporter,
-            document: pdfURL != nil ? PDFDocument(url: pdfURL!) : nil,
+            document: pdfData != nil ? PDFDataDocument(data: pdfData!) : nil,
             contentType: .pdf,
             defaultFilename: "conversation.pdf"
         ) { _ in
-            pdfURL = nil
+            pdfData = nil
         }
     }
     
@@ -79,95 +71,54 @@ struct ConversationDetailView: View {
         return md
     }
     
-    private func exportToMarkdown() {
-        showMarkdownExporter = true
-    }
-    
     private func exportToPDF() {
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("conversation-\(conversation.id).pdf")
-        
-        guard let pdfData = createPDF() else { return }
-        try? pdfData.write(to: tempURL)
-        pdfURL = tempURL
+        pdfData = createPDFData()
         showPDFExporter = true
     }
     
-    private func createPDF() -> Data? {
-        let pageSize = CGSize(width: 612, height: 792) // US Letter
-        let pdfData = NSMutableData()
-        
-        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else {
-            return nil
-        }
-        
-        var mediaBox = CGRect(origin: .zero, size: pageSize)
-        guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
-            return nil
-        }
-        
-        let margin: CGFloat = 50
-        var yPosition: CGFloat = margin
-        
-        context.beginPage(mediaBox: &mediaBox)
+    private func createPDFData() -> Data? {
+        // Create attributed string for the entire document
+        let fullText = NSMutableAttributedString()
         
         // Title
         let titleFont = NSFont.boldSystemFont(ofSize: 24)
         let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
-        let titleString = NSAttributedString(string: conversation.title, attributes: titleAttrs)
-        titleString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 30))
-        yPosition += 50
+        fullText.append(NSAttributedString(string: conversation.title + "\n\n", attributes: titleAttrs))
         
         // Metadata
         let metaFont = NSFont.systemFont(ofSize: 10)
         let metaAttrs: [NSAttributedString.Key: Any] = [.font: metaFont, .foregroundColor: NSColor.gray]
-        let metaString = NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())", attributes: metaAttrs)
-        metaString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 15))
-        yPosition += 40
+        fullText.append(NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())\n\n", attributes: metaAttrs))
         
         // Messages
+        let roleFont = NSFont.boldSystemFont(ofSize: 14)
         let bodyFont = NSFont.systemFont(ofSize: 11)
-        let roleFont = NSFont.boldSystemFont(ofSize: 13)
         
         for message in conversation.messages {
-            // Check if we need a new page
-            if yPosition > pageSize.height - 150 {
-                context.endPage()
-                context.beginPage(mediaBox: &mediaBox)
-                yPosition = margin
-            }
-            
-            // Role
             let roleAttrs: [NSAttributedString.Key: Any] = [.font: roleFont]
-            let roleText = message.role == .user ? "You:" : "Kiro:"
-            let roleString = NSAttributedString(string: roleText, attributes: roleAttrs)
-            roleString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 18))
-            yPosition += 30
+            let roleText = message.role == .user ? "You:\n" : "Kiro:\n"
+            fullText.append(NSAttributedString(string: roleText, attributes: roleAttrs))
             
-            // Message content
             let bodyAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
-            let bodyString = NSAttributedString(string: message.content, attributes: bodyAttrs)
-            
-            let maxWidth = pageSize.width - 2 * margin
-            let textHeight = bodyString.boundingRect(
-                with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
-                options: .usesLineFragmentOrigin
-            ).height
-            
-            let textRect = CGRect(
-                x: margin,
-                y: pageSize.height - yPosition - textHeight,
-                width: maxWidth,
-                height: textHeight
-            )
-            bodyString.draw(in: textRect)
-            yPosition += textHeight + 30
+            fullText.append(NSAttributedString(string: message.content + "\n\n", attributes: bodyAttrs))
         }
         
-        context.endPage()
-        context.closePDF()
+        // Create PDF from attributed string
+        let printInfo = NSPrintInfo.shared
+        printInfo.paperSize = NSSize(width: 612, height: 792) // US Letter
+        printInfo.topMargin = 50
+        printInfo.bottomMargin = 50
+        printInfo.leftMargin = 50
+        printInfo.rightMargin = 50
         
-        return pdfData as Data
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 512, height: 692))
+        textView.textStorage?.setAttributedString(fullText)
+        
+        let printOperation = NSPrintOperation(view: textView, printInfo: printInfo)
+        printOperation.showsPrintPanel = false
+        printOperation.showsProgressPanel = false
+        
+        return textView.dataWithPDF(inside: textView.bounds)
     }
 }
 
@@ -210,19 +161,19 @@ struct TextDocument: FileDocument {
     }
 }
 
-struct PDFDocument: FileDocument {
+struct PDFDataDocument: FileDocument {
     static var readableContentTypes = [UTType.pdf]
-    var url: URL
+    var data: Data
     
-    init(url: URL) {
-        self.url = url
+    init(data: Data) {
+        self.data = data
     }
     
     init(configuration: ReadConfiguration) throws {
-        url = URL(fileURLWithPath: "")
+        data = Data()
     }
     
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        try FileWrapper(url: url)
+        FileWrapper(regularFileWithContents: data)
     }
 }
