@@ -11,7 +11,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 - 📝 View all saved Kiro CLI conversations
 - 🔍 Search across conversation titles and content
 - 📤 Export conversations to Markdown
-- 🌓 Dark mode support
+- 🌓 Light/Dark mode toggle
 - 📅 Sort by recent activity
 - 💬 Full markdown rendering (code blocks, formatting)
 - 🎨 Custom app icon
@@ -61,7 +61,7 @@ Features:
 - ✅ Search functionality across all conversations
 - ✅ Export conversations to Markdown files
 - ✅ Custom app icon
-- ✅ Dark mode support
+- ✅ Light/Dark mode toggle in toolbar
 - ✅ Conversation list with auto-generated titles
 
 Technical:
