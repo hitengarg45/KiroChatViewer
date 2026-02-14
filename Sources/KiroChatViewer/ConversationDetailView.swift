@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import MarkdownUI
 
 struct ConversationDetailView: View {
     let conversation: Conversation
@@ -76,7 +77,7 @@ struct MessageView: View {
                     .font(.headline)
             }
             
-            Text(message.content)
+            Markdown(message.content)
                 .textSelection(.enabled)
                 .padding()
                 .background(message.role == .user ? Color.blue.opacity(0.1) : Color.purple.opacity(0.1))
