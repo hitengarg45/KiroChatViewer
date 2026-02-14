@@ -1,6 +1,6 @@
 import Foundation
 
-struct Conversation: Identifiable, Codable {
+struct Conversation: Identifiable, Codable, Hashable {
     let id: String
     let directory: String
     let createdAt: Date
@@ -9,6 +9,14 @@ struct Conversation: Identifiable, Codable {
     
     var title: String {
         history.first?.content.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines) ?? "Untitled"
+    }
+    
+    static func == (lhs: Conversation, rhs: Conversation) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -34,16 +42,26 @@ struct Conversation: Identifiable, Codable {
     }
 }
 
-struct Message: Codable, Identifiable {
+struct Message: Identifiable, Hashable {
     let id = UUID()
     let role: Role
     let content: String
     
-    enum Role: String, Codable {
+    enum Role: String {
         case user
         case assistant
     }
     
+    static func == (lhs: Message, rhs: Message) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+extension Message: Codable {
     enum CodingKeys: String, CodingKey {
         case user
         case assistant
@@ -62,11 +80,26 @@ struct Message: Codable, Identifiable {
         }
     }
     
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        let content = MessageContent(text: self.content)
+        switch role {
+        case .user:
+            try container.encode(content, forKey: .user)
+        case .assistant:
+            try container.encode(content, forKey: .assistant)
+        }
+    }
+    
     struct MessageContent: Codable {
         let text: String
         
         enum CodingKeys: String, CodingKey {
             case text = "content"
+        }
+        
+        init(text: String) {
+            self.text = text
         }
         
         init(from decoder: Decoder) throws {

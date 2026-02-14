@@ -1,5 +1,5 @@
 import SwiftUI
-import MarkdownUI
+import UniformTypeIdentifiers
 
 struct ConversationDetailView: View {
     let conversation: Conversation
