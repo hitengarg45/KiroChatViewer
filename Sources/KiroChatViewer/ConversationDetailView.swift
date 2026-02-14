@@ -22,7 +22,7 @@ struct ConversationDetailView: View {
                 
                 Divider()
                 
-                ForEach(conversation.history) { message in
+                ForEach(conversation.messages) { message in
                     MessageView(message: message)
                 }
             }
@@ -48,7 +48,7 @@ struct ConversationDetailView: View {
         md += "**Updated:** \(conversation.updatedAt.formatted())\n\n"
         md += "---\n\n"
         
-        for message in conversation.history {
+        for message in conversation.messages {
             md += "## \(message.role == .user ? "User" : "Assistant")\n\n"
             md += message.content + "\n\n"
         }

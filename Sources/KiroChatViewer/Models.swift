@@ -5,10 +5,23 @@ struct Conversation: Identifiable, Codable, Hashable {
     let directory: String
     let createdAt: Date
     let updatedAt: Date
-    let history: [Message]
+    let history: [[MessageWrapper]]
+    
+    var messages: [Message] {
+        history.flatMap { pair in
+            pair.compactMap { wrapper in
+                if let prompt = wrapper.prompt {
+                    return Message(role: .user, content: prompt)
+                } else if let response = wrapper.response {
+                    return Message(role: .assistant, content: response)
+                }
+                return nil
+            }
+        }
+    }
     
     var title: String {
-        history.first?.content.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines) ?? "Untitled"
+        messages.first?.content.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines) ?? "Untitled"
     }
     
     static func == (lhs: Conversation, rhs: Conversation) -> Bool {
@@ -27,13 +40,30 @@ struct Conversation: Identifiable, Codable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        history = try container.decode([Message].self, forKey: .history)
+        
+        // Try to decode as array of arrays first (new format)
+        if let arrayFormat = try? container.decode([[MessageWrapper]].self, forKey: .history) {
+            history = arrayFormat
+        }
+        // Fall back to dictionary format (old format)
+        else if let dictFormat = try? container.decode([MessagePair].self, forKey: .history) {
+            history = dictFormat.map { [$0.user, $0.assistant] }
+        }
+        else {
+            history = []
+        }
+        
         directory = ""
         createdAt = Date()
         updatedAt = Date()
     }
     
-    init(id: String, directory: String, createdAt: Date, updatedAt: Date, history: [Message]) {
+    struct MessagePair: Codable {
+        let user: MessageWrapper
+        let assistant: MessageWrapper
+    }
+    
+    init(id: String, directory: String, createdAt: Date, updatedAt: Date, history: [[MessageWrapper]]) {
         self.id = id
         self.directory = directory
         self.createdAt = createdAt
@@ -42,12 +72,69 @@ struct Conversation: Identifiable, Codable, Hashable {
     }
 }
 
+struct MessageWrapper: Codable {
+    let content: ContentType?
+    
+    var prompt: String? {
+        if case .prompt(let p) = content {
+            return p.prompt
+        }
+        return nil
+    }
+    
+    var response: String? {
+        if case .response(let r) = content {
+            return r.content
+        }
+        return nil
+    }
+    
+    enum ContentType: Codable {
+        case prompt(PromptContent)
+        case response(ResponseContent)
+        
+        enum CodingKeys: String, CodingKey {
+            case Prompt
+            case Response
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let prompt = try? container.decode(PromptContent.self, forKey: .Prompt) {
+                self = .prompt(prompt)
+            } else if let response = try? container.decode(ResponseContent.self, forKey: .Response) {
+                self = .response(response)
+            } else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Unknown content type"))
+            }
+        }
+        
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .prompt(let p):
+                try container.encode(p, forKey: .Prompt)
+            case .response(let r):
+                try container.encode(r, forKey: .Response)
+            }
+        }
+    }
+    
+    struct PromptContent: Codable {
+        let prompt: String
+    }
+    
+    struct ResponseContent: Codable {
+        let content: String
+    }
+}
+
 struct Message: Identifiable, Hashable {
     let id = UUID()
     let role: Role
     let content: String
     
-    enum Role: String {
+    enum Role {
         case user
         case assistant
     }
@@ -58,63 +145,5 @@ struct Message: Identifiable, Hashable {
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
-    }
-}
-
-extension Message: Codable {
-    enum CodingKeys: String, CodingKey {
-        case user
-        case assistant
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let userContent = try? container.decode(MessageContent.self, forKey: .user) {
-            role = .user
-            content = userContent.text
-        } else if let assistantContent = try? container.decode(MessageContent.self, forKey: .assistant) {
-            role = .assistant
-            content = assistantContent.text
-        } else {
-            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Invalid message"))
-        }
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        let content = MessageContent(text: self.content)
-        switch role {
-        case .user:
-            try container.encode(content, forKey: .user)
-        case .assistant:
-            try container.encode(content, forKey: .assistant)
-        }
-    }
-    
-    struct MessageContent: Codable {
-        let text: String
-        
-        enum CodingKeys: String, CodingKey {
-            case text = "content"
-        }
-        
-        init(text: String) {
-            self.text = text
-        }
-        
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            if let textValue = try? container.decode(String.self, forKey: .text) {
-                text = textValue
-            } else if let arrayValue = try? container.decode([ContentBlock].self, forKey: .text) {
-                text = arrayValue.compactMap { $0.text }.joined(separator: "\n")
-            } else {
-                text = ""
-            }
-        }
-    }
-    
-    struct ContentBlock: Codable {
-        let text: String?
     }
 }

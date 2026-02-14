@@ -11,7 +11,7 @@ struct ContentView: View {
         }
         return db.conversations.filter { conv in
             conv.title.localizedCaseInsensitiveContains(searchText) ||
-            conv.history.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
+            conv.messages.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
         }
     }
     
