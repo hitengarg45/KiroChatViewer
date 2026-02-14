@@ -18,12 +18,30 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ## Installation
 
+### Quick Install
+
 1. Download `KiroChatViewer-v1.0.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
-3. Drag KiroChatViewer to your Applications folder
+3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
 
-**First launch**: macOS may show security warning. Right-click → Open → Open anyway.
+**First launch**: macOS may show "unidentified developer" warning. Right-click → Open → Open anyway, or go to System Settings → Privacy & Security → Open Anyway.
+
+### Alternative: Run from Terminal
+
+```bash
+cd ~/Documents/MyProjects/KiroChatViewer
+open KiroChatViewer.app
+```
+
+### Troubleshooting
+
+**"App is damaged" error**:
+```bash
+xattr -cr ~/Documents/MyProjects/KiroChatViewer/KiroChatViewer.app
+```
+
+**App won't open**: Make sure you have conversations in `~/Library/Application Support/kiro-cli/data.sqlite3`
 
 ## Usage
 
@@ -45,6 +63,12 @@ The app automatically reads from your Kiro CLI database at:
 ```bash
 cd ~/Documents/MyProjects/KiroChatViewer
 swift build -c release
+cp .build/release/KiroChatViewer KiroChatViewer.app/Contents/MacOS/
+```
+
+To create a DMG:
+```bash
+hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -ov -format UDZO Releases/KiroChatViewer-v1.0.0.dmg
 ```
 
 ## Release Notes
@@ -69,12 +93,6 @@ Technical:
 - SQLite.swift for database access
 - swift-markdown-ui for rendering
 - Handles 79+ conversations efficiently
-
-## Documentation
-
-- **[INSTALL.md](INSTALL.md)** - Installation instructions
-- **[USAGE.md](USAGE.md)** - How to use the app
-- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Technical details
 
 ## License
 
