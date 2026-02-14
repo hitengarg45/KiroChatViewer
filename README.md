@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 1.0.0
+## Current Version: 1.0.1
 
-[Download Latest Release](Releases/KiroChatViewer-v1.0.0.dmg) (2.9 MB)
+[Download Latest Release](Releases/KiroChatViewer-v1.0.1.dmg) (2.9 MB)
 
 ## Features
 
@@ -48,6 +48,22 @@ swift build -c release
 ```
 
 ## Release Notes
+
+### Version 1.0.1 (2026-02-14)
+
+**Export Options Enhancement**
+
+Features:
+- ✅ Export conversations as Markdown (.md)
+- ✅ Export conversations as PDF (.pdf)
+- ✅ Export menu with format selection
+- ✅ PDF includes formatted title, metadata, and messages
+- ✅ Proper pagination for long conversations in PDF
+
+Changes:
+- Replaced single "Export" button with "Export" menu
+- Added PDF generation with native macOS APIs
+- Maintained markdown export functionality
 
 ### Version 1.0.0 (2026-02-14)
 
