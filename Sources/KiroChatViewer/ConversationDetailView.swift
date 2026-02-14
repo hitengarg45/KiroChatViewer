@@ -78,73 +78,73 @@ struct ConversationDetailView: View {
     }
     
     private func createPDFData() -> Data? {
-        // Create attributed string
-        let fullText = NSMutableAttributedString()
+        let pdfData = NSMutableData()
+        
+        let pageWidth: CGFloat = 612
+        let pageHeight: CGFloat = 792
+        let margin: CGFloat = 50
+        let contentWidth = pageWidth - (2 * margin)
+        let contentHeight = pageHeight - (2 * margin)
+        
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else { return nil }
+        var mediaBox = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else { return nil }
         
         let titleFont = NSFont.boldSystemFont(ofSize: 24)
-        fullText.append(NSAttributedString(string: conversation.title + "\n\n", attributes: [.font: titleFont]))
-        
         let metaFont = NSFont.systemFont(ofSize: 10)
-        fullText.append(NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())\n\n", 
-                                          attributes: [.font: metaFont, .foregroundColor: NSColor.gray]))
-        
         let roleFont = NSFont.boldSystemFont(ofSize: 14)
         let bodyFont = NSFont.systemFont(ofSize: 11)
         
+        var yPosition: CGFloat = margin
+        
+        context.beginPage(mediaBox: &mediaBox)
+        
+        // Title
+        let titleText = NSAttributedString(string: conversation.title, attributes: [.font: titleFont])
+        let titleSize = titleText.size()
+        titleText.draw(at: CGPoint(x: margin, y: pageHeight - yPosition - titleSize.height))
+        yPosition += titleSize.height + 20
+        
+        // Metadata
+        let metaText = NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())", 
+                                         attributes: [.font: metaFont, .foregroundColor: NSColor.gray])
+        let metaSize = metaText.size()
+        metaText.draw(at: CGPoint(x: margin, y: pageHeight - yPosition - metaSize.height))
+        yPosition += metaSize.height + 30
+        
+        // Messages
         for message in conversation.messages {
-            let roleText = message.role == .user ? "You:\n" : "Kiro:\n"
-            fullText.append(NSAttributedString(string: roleText, attributes: [.font: roleFont]))
-            fullText.append(NSAttributedString(string: message.content + "\n\n", attributes: [.font: bodyFont]))
-        }
-        
-        // Setup print info
-        let printInfo = NSPrintInfo()
-        printInfo.paperSize = NSSize(width: 612, height: 792)
-        printInfo.topMargin = 50
-        printInfo.bottomMargin = 50
-        printInfo.leftMargin = 50
-        printInfo.rightMargin = 50
-        printInfo.horizontalPagination = .fit
-        printInfo.verticalPagination = .automatic
-        
-        let pageRect = NSRect(x: 0, y: 0, 
-                             width: printInfo.paperSize.width - printInfo.leftMargin - printInfo.rightMargin,
-                             height: printInfo.paperSize.height - printInfo.topMargin - printInfo.bottomMargin)
-        
-        // Create text view
-        let textView = NSTextView(frame: pageRect)
-        textView.textStorage?.setAttributedString(fullText)
-        
-        // Create print operation
-        let printOp = NSPrintOperation(view: textView, printInfo: printInfo)
-        printOp.showsPrintPanel = false
-        printOp.showsProgressPanel = false
-        
-        // Generate PDF to temp file
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
-        printOp.pdfPanel.options = []
-        
-        // Save to file then read back
-        if printOp.run() {
-            printOp.deliverResult()
-        }
-        
-        // Use PDFDocument for proper pagination
-        let pdfDoc = PDFDocument()
-        var currentPage = 0
-        let pageHeight = pageRect.height
-        var yOffset: CGFloat = 0
-        
-        while yOffset < textView.layoutManager!.usedRect(for: textView.textContainer!).height {
-            let pageData = textView.dataWithPDF(inside: NSRect(x: 0, y: yOffset, width: pageRect.width, height: pageHeight))
-            if let page = PDFPage(image: NSImage(data: pageData)!) {
-                pdfDoc.insert(page, at: currentPage)
-                currentPage += 1
+            if yPosition > contentHeight - 100 {
+                context.endPage()
+                context.beginPage(mediaBox: &mediaBox)
+                yPosition = margin
             }
-            yOffset += pageHeight
+            
+            let roleText = NSAttributedString(string: message.role == .user ? "You:" : "Kiro:", 
+                                             attributes: [.font: roleFont])
+            let roleSize = roleText.size()
+            roleText.draw(at: CGPoint(x: margin, y: pageHeight - yPosition - roleSize.height))
+            yPosition += roleSize.height + 10
+            
+            let bodyText = NSAttributedString(string: message.content, attributes: [.font: bodyFont])
+            let bodySize = bodyText.boundingRect(with: CGSize(width: contentWidth, height: .greatestFiniteMagnitude), 
+                                                 options: [.usesLineFragmentOrigin, .usesFontLeading])
+            
+            if yPosition + bodySize.height > contentHeight {
+                context.endPage()
+                context.beginPage(mediaBox: &mediaBox)
+                yPosition = margin
+            }
+            
+            bodyText.draw(in: CGRect(x: margin, y: pageHeight - yPosition - bodySize.height, 
+                                    width: contentWidth, height: bodySize.height))
+            yPosition += bodySize.height + 25
         }
         
-        return pdfDoc.dataRepresentation()
+        context.endPage()
+        context.closePDF()
+        
+        return pdfData as Data
     }
 }
 
