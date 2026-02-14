@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import MarkdownUI
 import AppKit
+import PDFKit
 
 struct ConversationDetailView: View {
     let conversation: Conversation
@@ -77,58 +78,73 @@ struct ConversationDetailView: View {
     }
     
     private func createPDFData() -> Data? {
-        // Create attributed string for the entire document
+        // Create attributed string
         let fullText = NSMutableAttributedString()
         
-        // Title
         let titleFont = NSFont.boldSystemFont(ofSize: 24)
-        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
-        fullText.append(NSAttributedString(string: conversation.title + "\n\n", attributes: titleAttrs))
+        fullText.append(NSAttributedString(string: conversation.title + "\n\n", attributes: [.font: titleFont]))
         
-        // Metadata
         let metaFont = NSFont.systemFont(ofSize: 10)
-        let metaAttrs: [NSAttributedString.Key: Any] = [.font: metaFont, .foregroundColor: NSColor.gray]
-        fullText.append(NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())\n\n", attributes: metaAttrs))
+        fullText.append(NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())\n\n", 
+                                          attributes: [.font: metaFont, .foregroundColor: NSColor.gray]))
         
-        // Messages
         let roleFont = NSFont.boldSystemFont(ofSize: 14)
         let bodyFont = NSFont.systemFont(ofSize: 11)
         
         for message in conversation.messages {
-            let roleAttrs: [NSAttributedString.Key: Any] = [.font: roleFont]
             let roleText = message.role == .user ? "You:\n" : "Kiro:\n"
-            fullText.append(NSAttributedString(string: roleText, attributes: roleAttrs))
-            
-            let bodyAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
-            fullText.append(NSAttributedString(string: message.content + "\n\n", attributes: bodyAttrs))
+            fullText.append(NSAttributedString(string: roleText, attributes: [.font: roleFont]))
+            fullText.append(NSAttributedString(string: message.content + "\n\n", attributes: [.font: bodyFont]))
         }
         
-        // Calculate required height for all content
-        let pageWidth: CGFloat = 512 // 612 - 50 margin on each side
-        let textContainer = NSTextContainer(size: NSSize(width: pageWidth, height: .greatestFiniteMagnitude))
-        let layoutManager = NSLayoutManager()
-        let textStorage = NSTextStorage(attributedString: fullText)
-        
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        
-        layoutManager.glyphRange(for: textContainer)
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        
-        // Create text view with proper height for all content
-        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: pageWidth, height: usedRect.height))
-        textView.textStorage?.setAttributedString(fullText)
-        
-        // Create PDF with proper print info
-        let printInfo = NSPrintInfo.shared
+        // Setup print info
+        let printInfo = NSPrintInfo()
         printInfo.paperSize = NSSize(width: 612, height: 792)
         printInfo.topMargin = 50
         printInfo.bottomMargin = 50
         printInfo.leftMargin = 50
         printInfo.rightMargin = 50
-        printInfo.isVerticallyCentered = false
+        printInfo.horizontalPagination = .fit
+        printInfo.verticalPagination = .automatic
         
-        return textView.dataWithPDF(inside: textView.bounds)
+        let pageRect = NSRect(x: 0, y: 0, 
+                             width: printInfo.paperSize.width - printInfo.leftMargin - printInfo.rightMargin,
+                             height: printInfo.paperSize.height - printInfo.topMargin - printInfo.bottomMargin)
+        
+        // Create text view
+        let textView = NSTextView(frame: pageRect)
+        textView.textStorage?.setAttributedString(fullText)
+        
+        // Create print operation
+        let printOp = NSPrintOperation(view: textView, printInfo: printInfo)
+        printOp.showsPrintPanel = false
+        printOp.showsProgressPanel = false
+        
+        // Generate PDF to temp file
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
+        printOp.pdfPanel.options = []
+        
+        // Save to file then read back
+        if printOp.run() {
+            printOp.deliverResult()
+        }
+        
+        // Use PDFDocument for proper pagination
+        let pdfDoc = PDFDocument()
+        var currentPage = 0
+        let pageHeight = pageRect.height
+        var yOffset: CGFloat = 0
+        
+        while yOffset < textView.layoutManager!.usedRect(for: textView.textContainer!).height {
+            let pageData = textView.dataWithPDF(inside: NSRect(x: 0, y: yOffset, width: pageRect.width, height: pageHeight))
+            if let page = PDFPage(image: NSImage(data: pageData)!) {
+                pdfDoc.insert(page, at: currentPage)
+                currentPage += 1
+            }
+            yOffset += pageHeight
+        }
+        
+        return pdfDoc.dataRepresentation()
     }
 }
 
