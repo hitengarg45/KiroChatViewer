@@ -97,54 +97,74 @@ struct ConversationDetailView: View {
         let pageSize = CGSize(width: 612, height: 792) // US Letter
         let pdfData = NSMutableData()
         
-        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData),
-              let context = CGContext(consumer: consumer, mediaBox: nil, nil) else {
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else {
+            return nil
+        }
+        
+        var mediaBox = CGRect(origin: .zero, size: pageSize)
+        guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
             return nil
         }
         
         let margin: CGFloat = 50
         var yPosition: CGFloat = margin
         
-        context.beginPDFPage(nil)
+        context.beginPage(mediaBox: &mediaBox)
         
         // Title
         let titleFont = NSFont.boldSystemFont(ofSize: 24)
         let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
         let titleString = NSAttributedString(string: conversation.title, attributes: titleAttrs)
         titleString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 30))
-        yPosition += 40
+        yPosition += 50
         
         // Metadata
         let metaFont = NSFont.systemFont(ofSize: 10)
         let metaAttrs: [NSAttributedString.Key: Any] = [.font: metaFont, .foregroundColor: NSColor.gray]
         let metaString = NSAttributedString(string: "Updated: \(conversation.updatedAt.formatted())", attributes: metaAttrs)
         metaString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 15))
-        yPosition += 30
+        yPosition += 40
         
         // Messages
-        let bodyFont = NSFont.systemFont(ofSize: 12)
+        let bodyFont = NSFont.systemFont(ofSize: 11)
+        let roleFont = NSFont.boldSystemFont(ofSize: 13)
+        
         for message in conversation.messages {
-            if yPosition > pageSize.height - 100 {
-                context.endPDFPage()
-                context.beginPDFPage(nil)
+            // Check if we need a new page
+            if yPosition > pageSize.height - 150 {
+                context.endPage()
+                context.beginPage(mediaBox: &mediaBox)
                 yPosition = margin
             }
             
-            let roleFont = NSFont.boldSystemFont(ofSize: 14)
+            // Role
             let roleAttrs: [NSAttributedString.Key: Any] = [.font: roleFont]
-            let roleString = NSAttributedString(string: message.role == .user ? "You:" : "Kiro:", attributes: roleAttrs)
-            roleString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 20))
-            yPosition += 25
+            let roleText = message.role == .user ? "You:" : "Kiro:"
+            let roleString = NSAttributedString(string: roleText, attributes: roleAttrs)
+            roleString.draw(at: CGPoint(x: margin, y: pageSize.height - yPosition - 18))
+            yPosition += 30
             
+            // Message content
             let bodyAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
             let bodyString = NSAttributedString(string: message.content, attributes: bodyAttrs)
-            let textHeight = bodyString.boundingRect(with: CGSize(width: pageSize.width - 2 * margin, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin).height
             
-            bodyString.draw(in: CGRect(x: margin, y: pageSize.height - yPosition - textHeight, width: pageSize.width - 2 * margin, height: textHeight))
-            yPosition += textHeight + 20
+            let maxWidth = pageSize.width - 2 * margin
+            let textHeight = bodyString.boundingRect(
+                with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
+                options: .usesLineFragmentOrigin
+            ).height
+            
+            let textRect = CGRect(
+                x: margin,
+                y: pageSize.height - yPosition - textHeight,
+                width: maxWidth,
+                height: textHeight
+            )
+            bodyString.draw(in: textRect)
+            yPosition += textHeight + 30
         }
         
-        context.endPDFPage()
+        context.endPage()
         context.closePDF()
         
         return pdfData as Data
