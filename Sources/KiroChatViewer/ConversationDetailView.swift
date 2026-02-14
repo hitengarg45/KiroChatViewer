@@ -27,6 +27,7 @@ struct ConversationDetailView: View {
                     MessageView(message: message)
                 }
             }
+            .padding(.bottom, 40)
         }
         .toolbar {
             Button("Export") {
