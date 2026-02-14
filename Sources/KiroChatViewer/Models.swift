@@ -12,7 +12,7 @@ struct Conversation: Identifiable, Codable, Hashable {
             pair.compactMap { wrapper in
                 if let prompt = wrapper.prompt {
                     return Message(role: .user, content: prompt)
-                } else if let response = wrapper.response {
+                } else if let response = wrapper.responseText {
                     return Message(role: .assistant, content: response)
                 }
                 return nil
@@ -74,6 +74,24 @@ struct Conversation: Identifiable, Codable, Hashable {
 
 struct MessageWrapper: Codable {
     let content: ContentType?
+    let response: ResponseContent?
+    
+    enum CodingKeys: String, CodingKey {
+        case content
+        case Response
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        content = try? container.decode(ContentType.self, forKey: .content)
+        response = try? container.decode(ResponseContent.self, forKey: .Response)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(content, forKey: .content)
+        try container.encodeIfPresent(response, forKey: .Response)
+    }
     
     var prompt: String? {
         if case .prompt(let p) = content {
@@ -82,11 +100,8 @@ struct MessageWrapper: Codable {
         return nil
     }
     
-    var response: String? {
-        if case .response(let r) = content {
-            return r.content
-        }
-        return nil
+    var responseText: String? {
+        return response?.content
     }
     
     enum ContentType: Codable {
