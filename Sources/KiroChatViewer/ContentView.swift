@@ -19,6 +19,7 @@ struct ContentView: View {
         NavigationSplitView {
             List(filteredConversations, selection: $selectedConversation) { conv in
                 ConversationRow(conversation: conv)
+                    .tag(conv)
             }
             .searchable(text: $searchText, prompt: "Search conversations")
             .navigationTitle("Kiro Chats")
