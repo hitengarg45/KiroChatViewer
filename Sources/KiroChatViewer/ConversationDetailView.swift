@@ -67,6 +67,10 @@ struct ConversationDetailView: View {
                     // If bottom is near viewport bottom (within 100 points), hide button
                     showScrollButton = value > 100
                 }
+                .onAppear {
+                    // Jump to bottom immediately (no animation) when conversation first appears
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if showScrollButton {
                         Button(action: {
