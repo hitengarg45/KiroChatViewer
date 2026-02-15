@@ -50,29 +50,19 @@ struct ConversationDetailView: View {
                         Color.clear
                             .frame(height: 1)
                             .id("bottom")
-                            .background(
-                                GeometryReader { geo in
-                                    Color.clear.preference(
-                                        key: ViewOffsetKey.self,
-                                        value: geo.frame(in: .named("scrollView")).maxY
-                                    )
-                                }
-                            )
+                            .onAppear {
+                                showScrollButton = false
+                            }
+                            .onDisappear {
+                                showScrollButton = true
+                            }
                     }
                     .padding(.bottom, 40)
                 }
                 .opacity(isReloading ? 0.3 : 1.0)
-                .coordinateSpace(name: "scrollView")
-                .onPreferenceChange(ViewOffsetKey.self) { value in
-                    // Show button when scrolled up (bottom is far from viewport)
-                    // Hide button when at bottom (value is small/negative)
-                    showScrollButton = value > 50
-                }
                 .onAppear {
                     // Jump to bottom immediately (no animation) when conversation first appears
                     proxy.scrollTo("bottom", anchor: .bottom)
-                    // Ensure button is hidden when starting at bottom
-                    showScrollButton = false
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if showScrollButton {
