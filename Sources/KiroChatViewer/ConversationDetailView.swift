@@ -30,14 +30,22 @@ struct ConversationDetailView: View {
                         
                         Divider()
                         
+                        // Top anchor to detect scroll position
+                        Color.clear
+                            .frame(height: 1)
+                            .id("top")
+                            .onAppear { showScrollButton = false }
+                        
                         ForEach(conversation.messages) { message in
                             MessageView(message: message)
                         }
                         
-                        // Invisible anchor at bottom
+                        // Bottom anchor
                         Color.clear
                             .frame(height: 1)
                             .id("bottom")
+                            .onAppear { showScrollButton = false }
+                            .onDisappear { showScrollButton = true }
                     }
                     .padding(.bottom, 40)
                 }
@@ -50,12 +58,8 @@ struct ConversationDetailView: View {
                         }
                     }
                 }
-                
-                // Floating scroll to bottom button
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
+                .overlay(alignment: .bottomTrailing) {
+                    if showScrollButton {
                         Button(action: {
                             withAnimation(.easeOut(duration: 0.3)) {
                                 proxy.scrollTo("bottom", anchor: .bottom)
@@ -64,6 +68,7 @@ struct ConversationDetailView: View {
                             Image(systemName: "arrow.down.circle.fill")
                                 .font(.system(size: 32))
                                 .foregroundStyle(.white, .purple)
+                                .shadow(radius: 4)
                         }
                         .buttonStyle(.plain)
                         .padding()
