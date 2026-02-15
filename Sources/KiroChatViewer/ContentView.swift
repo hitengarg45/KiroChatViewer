@@ -37,21 +37,9 @@ struct ContentView: View {
                         rotationAngle += 360
                     }
                     
-                    // Store selected ID before reload
-                    let selectedId = selectedConversation?.id
-                    
-                    // Reload in background without clearing selection
+                    // Just reload the list
                     Task {
                         db.loadConversations()
-                        
-                        // Wait for conversations to load, then update selection
-                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
-                        
-                        if let id = selectedId {
-                            await MainActor.run {
-                                selectedConversation = db.conversations.first { $0.id == id }
-                            }
-                        }
                     }
                 }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
@@ -60,7 +48,8 @@ struct ContentView: View {
             }
         } detail: {
             if let conv = selectedConversation {
-                ConversationDetailView(conversation: conv)
+                ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
+                    .environmentObject(db)
             } else {
                 Text("Select a conversation")
                     .foregroundStyle(.secondary)

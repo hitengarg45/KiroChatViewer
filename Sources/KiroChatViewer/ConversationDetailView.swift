@@ -5,6 +5,9 @@ import MarkdownUI
 struct ConversationDetailView: View {
     let conversation: Conversation
     @State private var exportURL: URL?
+    @State private var rotationAngle: Double = 0
+    @EnvironmentObject var db: DatabaseManager
+    @Binding var selectedConversation: Conversation?
     
     var body: some View {
         ScrollView {
@@ -30,6 +33,23 @@ struct ConversationDetailView: View {
             .padding(.bottom, 40)
         }
         .toolbar {
+            Button(action: {
+                withAnimation(.linear(duration: 0.5)) {
+                    rotationAngle += 360
+                }
+                
+                Task {
+                    db.loadConversations()
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    await MainActor.run {
+                        selectedConversation = db.conversations.first { $0.id == conversation.id }
+                    }
+                }
+            }) {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .rotationEffect(.degrees(rotationAngle))
+            
             Button("Export") {
                 exportToMarkdown()
             }
