@@ -64,12 +64,15 @@ struct ConversationDetailView: View {
                 .opacity(isReloading ? 0.3 : 1.0)
                 .coordinateSpace(name: "scrollView")
                 .onPreferenceChange(ViewOffsetKey.self) { value in
-                    // If bottom is near viewport bottom (within 100 points), hide button
-                    showScrollButton = value > 100
+                    // Show button when scrolled up (bottom is far from viewport)
+                    // Hide button when at bottom (value is small/negative)
+                    showScrollButton = value > 50
                 }
                 .onAppear {
                     // Jump to bottom immediately (no animation) when conversation first appears
                     proxy.scrollTo("bottom", anchor: .bottom)
+                    // Ensure button is hidden when starting at bottom
+                    showScrollButton = false
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if showScrollButton {
