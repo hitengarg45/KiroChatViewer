@@ -15,10 +15,15 @@ CUSTOM_BACKGROUND="/Users/ghiten/Documents/MyProjects/Icons/dmg.png"
 
 echo "🔨 Building beautiful DMG..."
 
-# Use custom background if it exists, otherwise create one
+# Resize custom background to fit DMG window (800x600)
 if [ -f "${CUSTOM_BACKGROUND}" ]; then
-    echo "🎨 Using custom background from Icons folder..."
-    cp "${CUSTOM_BACKGROUND}" "${BACKGROUND_FILE}"
+    echo "🎨 Resizing custom background to fit DMG window..."
+    python3 << 'PYTHON'
+from PIL import Image
+bg = Image.open('/Users/ghiten/Documents/MyProjects/Icons/dmg.png')
+bg_resized = bg.resize((800, 600), Image.Resampling.LANCZOS)
+bg_resized.save('dmg_background.png')
+PYTHON
 elif [ ! -f "${BACKGROUND_FILE}" ]; then
     echo "🎨 Creating background image..."
     python3 << 'PYTHON'
@@ -111,13 +116,13 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {400, 100, 1000, 500}
+        set the bounds of container window to {350, 200, 1150, 822}
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 128
         set background picture of viewOptions to file ".background:${BACKGROUND_FILE}"
-        set position of item "${APP_NAME}.app" of container window to {150, 200}
-        set position of item "Applications" of container window to {450, 200}
+        set position of item "${APP_NAME}.app" of container window to {170, 300}
+        set position of item "Applications" of container window to {620, 300}
         close
         open
         update without registering applications
