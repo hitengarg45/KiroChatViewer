@@ -30,9 +30,20 @@ struct ContentView: View {
                 }
                 .toggleStyle(.button)
                 
-                Button(action: db.loadConversations) {
+                Button(action: {
+                    db.loadConversations()
+                    // Force refresh selected conversation
+                    if let selected = selectedConversation {
+                        selectedConversation = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            selectedConversation = db.conversations.first { $0.id == selected.id }
+                        }
+                    }
+                }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
+                .rotationEffect(.degrees(db.isLoading ? 360 : 0))
+                .animation(db.isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: db.isLoading)
             }
         } detail: {
             if let conv = selectedConversation {
