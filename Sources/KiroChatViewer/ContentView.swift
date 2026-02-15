@@ -5,7 +5,7 @@ struct ContentView: View {
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
-    @State private var isRefreshing = false
+    @State private var rotationAngle: Double = 0
     
     var filteredConversations: [Conversation] {
         if searchText.isEmpty {
@@ -32,37 +32,31 @@ struct ContentView: View {
                 .toggleStyle(.button)
                 
                 Button(action: {
-                    // Start animation immediately
-                    withAnimation(.linear(duration: 0.6)) {
-                        isRefreshing = true
+                    // Animate rotation
+                    withAnimation(.linear(duration: 0.5)) {
+                        rotationAngle += 360
                     }
                     
-                    // Run reload asynchronously to not block animation
+                    // Store selected ID before reload
+                    let selectedId = selectedConversation?.id
+                    
+                    // Reload in background without clearing selection
                     Task {
                         db.loadConversations()
                         
-                        // Force refresh selected conversation
-                        if let selected = selectedConversation {
+                        // Wait for conversations to load, then update selection
+                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+                        
+                        if let id = selectedId {
                             await MainActor.run {
-                                selectedConversation = nil
+                                selectedConversation = db.conversations.first { $0.id == id }
                             }
-                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-                            await MainActor.run {
-                                selectedConversation = db.conversations.first { $0.id == selected.id }
-                            }
-                        }
-                    }
-                    
-                    // Stop animation after full rotation (independent of loading)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                        withAnimation(.linear(duration: 0.2)) {
-                            isRefreshing = false
                         }
                     }
                 }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                .rotationEffect(.degrees(rotationAngle))
             }
         } detail: {
             if let conv = selectedConversation {
