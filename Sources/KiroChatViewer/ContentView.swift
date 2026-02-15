@@ -32,24 +32,37 @@ struct ContentView: View {
                 .toggleStyle(.button)
                 
                 Button(action: {
-                    isRefreshing = true
-                    db.loadConversations()
-                    // Force refresh selected conversation
-                    if let selected = selectedConversation {
-                        selectedConversation = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            selectedConversation = db.conversations.first { $0.id == selected.id }
+                    // Start animation immediately
+                    withAnimation(.linear(duration: 0.6)) {
+                        isRefreshing = true
+                    }
+                    
+                    // Run reload asynchronously to not block animation
+                    Task {
+                        db.loadConversations()
+                        
+                        // Force refresh selected conversation
+                        if let selected = selectedConversation {
+                            await MainActor.run {
+                                selectedConversation = nil
+                            }
+                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                            await MainActor.run {
+                                selectedConversation = db.conversations.first { $0.id == selected.id }
+                            }
                         }
                     }
-                    // Ensure animation completes
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        isRefreshing = false
+                    
+                    // Stop animation after full rotation (independent of loading)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        withAnimation(.linear(duration: 0.2)) {
+                            isRefreshing = false
+                        }
                     }
                 }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .rotationEffect(.degrees(isRefreshing ? 360 : 0))
-                .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
             }
         } detail: {
             if let conv = selectedConversation {
