@@ -50,6 +50,7 @@ struct ContentView: View {
             if let conv = selectedConversation {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
+                    .id("\(conv.id)-\(conv.messages.count)")
             } else {
                 Text("Select a conversation")
                     .foregroundStyle(.secondary)
