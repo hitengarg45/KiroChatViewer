@@ -12,29 +12,44 @@ struct ConversationDetailView: View {
     
     var body: some View {
         ZStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(conversation.title)
-                            .font(.title)
-                        Text(conversation.directory)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Updated: \(conversation.updatedAt.formatted())")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(conversation.title)
+                                .font(.title)
+                            Text(conversation.directory)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Updated: \(conversation.updatedAt.formatted())")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        
+                        Divider()
+                        
+                        ForEach(conversation.messages) { message in
+                            MessageView(message: message)
+                        }
+                        
+                        // Invisible anchor at bottom
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottom")
                     }
-                    .padding()
-                    
-                    Divider()
-                    
-                    ForEach(conversation.messages) { message in
-                        MessageView(message: message)
+                    .padding(.bottom, 40)
+                }
+                .opacity(isReloading ? 0.3 : 1.0)
+                .onChange(of: isReloading) { newValue in
+                    if !newValue {
+                        // Scroll to bottom after reload completes
+                        withAnimation(.easeOut(duration: 0.5)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
                     }
                 }
-                .padding(.bottom, 40)
             }
-            .opacity(isReloading ? 0.3 : 1.0)
             
             if isReloading {
                 ProgressView()
