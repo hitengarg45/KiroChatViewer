@@ -7,6 +7,7 @@ struct ConversationDetailView: View {
     @State private var exportURL: URL?
     @State private var rotationAngle: Double = 0
     @State private var isReloading = false
+    @State private var showScrollButton = false
     @EnvironmentObject var db: DatabaseManager
     @Binding var selectedConversation: Conversation?
     
@@ -47,6 +48,25 @@ struct ConversationDetailView: View {
                         withAnimation(.easeOut(duration: 0.3)) {
                             proxy.scrollTo("bottom", anchor: .bottom)
                         }
+                    }
+                }
+                
+                // Floating scroll to bottom button
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
+                        }) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.white, .purple)
+                        }
+                        .buttonStyle(.plain)
+                        .padding()
                     }
                 }
             }
