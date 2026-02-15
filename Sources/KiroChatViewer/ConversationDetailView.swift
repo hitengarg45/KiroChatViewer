@@ -6,32 +6,40 @@ struct ConversationDetailView: View {
     let conversation: Conversation
     @State private var exportURL: URL?
     @State private var rotationAngle: Double = 0
-    @State private var refreshTrigger = false
+    @State private var isReloading = false
     @EnvironmentObject var db: DatabaseManager
     @Binding var selectedConversation: Conversation?
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(conversation.title)
-                        .font(.title)
-                    Text(conversation.directory)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Updated: \(conversation.updatedAt.formatted())")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(conversation.title)
+                            .font(.title)
+                        Text(conversation.directory)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Updated: \(conversation.updatedAt.formatted())")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    
+                    Divider()
+                    
+                    ForEach(conversation.messages) { message in
+                        MessageView(message: message)
+                    }
                 }
-                .padding()
-                
-                Divider()
-                
-                ForEach(conversation.messages) { message in
-                    MessageView(message: message)
-                }
+                .padding(.bottom, 40)
             }
-            .padding(.bottom, 40)
+            .opacity(isReloading ? 0.3 : 1.0)
+            
+            if isReloading {
+                ProgressView()
+                    .scaleEffect(1.5)
+            }
         }
         .toolbar {
             Button(action: {
@@ -39,16 +47,16 @@ struct ConversationDetailView: View {
                     rotationAngle += 360
                 }
                 
+                isReloading = true
+                
                 Task {
                     db.loadConversations()
-                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                    
                     await MainActor.run {
-                        // Clear and re-select to force refresh
                         let id = conversation.id
-                        selectedConversation = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            selectedConversation = db.conversations.first { $0.id == id }
-                        }
+                        selectedConversation = db.conversations.first { $0.id == id }
+                        isReloading = false
                     }
                 }
             }) {
