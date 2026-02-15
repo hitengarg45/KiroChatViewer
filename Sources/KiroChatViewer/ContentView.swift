@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
+    @State private var isRefreshing = false
     
     var filteredConversations: [Conversation] {
         if searchText.isEmpty {
@@ -31,6 +32,7 @@ struct ContentView: View {
                 .toggleStyle(.button)
                 
                 Button(action: {
+                    isRefreshing = true
                     db.loadConversations()
                     // Force refresh selected conversation
                     if let selected = selectedConversation {
@@ -39,11 +41,15 @@ struct ContentView: View {
                             selectedConversation = db.conversations.first { $0.id == selected.id }
                         }
                     }
+                    // Ensure animation completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        isRefreshing = false
+                    }
                 }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .rotationEffect(.degrees(db.isLoading ? 360 : 0))
-                .animation(db.isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: db.isLoading)
+                .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
             }
         } detail: {
             if let conv = selectedConversation {
