@@ -2,6 +2,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 import MarkdownUI
 
+struct ViewOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct ConversationDetailView: View {
     let conversation: Conversation
     @State private var exportURL: URL?
@@ -30,33 +37,35 @@ struct ConversationDetailView: View {
                         
                         Divider()
                         
-                        // Top anchor to detect scroll position
+                        // Top anchor - when visible, we're scrolled up
                         Color.clear
                             .frame(height: 1)
                             .id("top")
-                            .onAppear { showScrollButton = false }
                         
                         ForEach(conversation.messages) { message in
                             MessageView(message: message)
                         }
                         
-                        // Bottom anchor
+                        // Bottom anchor - when visible, we're at bottom
                         Color.clear
                             .frame(height: 1)
                             .id("bottom")
-                            .onAppear { showScrollButton = false }
-                            .onDisappear { showScrollButton = true }
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: ViewOffsetKey.self,
+                                        value: geo.frame(in: .named("scrollView")).maxY
+                                    )
+                                }
+                            )
                     }
                     .padding(.bottom, 40)
                 }
                 .opacity(isReloading ? 0.3 : 1.0)
-                .onAppear {
-                    // Scroll to bottom when conversation first appears
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    }
+                .coordinateSpace(name: "scrollView")
+                .onPreferenceChange(ViewOffsetKey.self) { value in
+                    // If bottom is near viewport bottom (within 100 points), hide button
+                    showScrollButton = value > 100
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if showScrollButton {
