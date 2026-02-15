@@ -46,16 +46,10 @@ struct ConversationDetailView: View {
                             MessageView(message: message)
                         }
                         
-                        // Bottom anchor - when visible, we're at bottom
+                        // Bottom anchor
                         Color.clear
                             .frame(height: 1)
                             .id("bottom")
-                            .onAppear {
-                                showScrollButton = false
-                            }
-                            .onDisappear {
-                                showScrollButton = true
-                            }
                     }
                     .padding(.bottom, 40)
                 }
@@ -65,20 +59,18 @@ struct ConversationDetailView: View {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if showScrollButton {
-                        Button(action: {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo("bottom", anchor: .bottom)
-                            }
-                        }) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 32))
-                                .foregroundStyle(.white, .purple)
-                                .shadow(radius: 4)
+                    Button(action: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
                         }
-                        .buttonStyle(.plain)
-                        .padding()
+                    }) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.white, .purple)
+                            .shadow(radius: 4)
                     }
+                    .buttonStyle(.plain)
+                    .padding()
                 }
             }
             
