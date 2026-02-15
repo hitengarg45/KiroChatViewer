@@ -6,6 +6,7 @@ struct ConversationDetailView: View {
     let conversation: Conversation
     @State private var exportURL: URL?
     @State private var rotationAngle: Double = 0
+    @State private var refreshTrigger = false
     @EnvironmentObject var db: DatabaseManager
     @Binding var selectedConversation: Conversation?
     
@@ -42,7 +43,12 @@ struct ConversationDetailView: View {
                     db.loadConversations()
                     try? await Task.sleep(nanoseconds: 200_000_000)
                     await MainActor.run {
-                        selectedConversation = db.conversations.first { $0.id == conversation.id }
+                        // Clear and re-select to force refresh
+                        let id = conversation.id
+                        selectedConversation = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            selectedConversation = db.conversations.first { $0.id == id }
+                        }
                     }
                 }
             }) {
