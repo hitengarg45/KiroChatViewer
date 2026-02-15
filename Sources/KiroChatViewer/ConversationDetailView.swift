@@ -41,10 +41,10 @@ struct ConversationDetailView: View {
                     .padding(.bottom, 40)
                 }
                 .opacity(isReloading ? 0.3 : 1.0)
-                .onChange(of: isReloading) { newValue in
-                    if !newValue {
-                        // Scroll to bottom after reload completes
-                        withAnimation(.easeOut(duration: 0.5)) {
+                .onAppear {
+                    // Scroll to bottom when conversation first appears
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeOut(duration: 0.3)) {
                             proxy.scrollTo("bottom", anchor: .bottom)
                         }
                     }
