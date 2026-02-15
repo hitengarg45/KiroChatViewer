@@ -11,11 +11,15 @@ VOLUME_NAME="${APP_NAME} v${VERSION}"
 SOURCE_APP="${APP_NAME}.app"
 OUTPUT_DMG="Releases/${DMG_NAME}.dmg"
 BACKGROUND_FILE="dmg_background.png"
+CUSTOM_BACKGROUND="/Users/ghiten/Documents/MyProjects/Icons/dmg.png"
 
 echo "🔨 Building beautiful DMG..."
 
-# Create background image if it doesn't exist
-if [ ! -f "${BACKGROUND_FILE}" ]; then
+# Use custom background if it exists, otherwise create one
+if [ -f "${CUSTOM_BACKGROUND}" ]; then
+    echo "🎨 Using custom background from Icons folder..."
+    cp "${CUSTOM_BACKGROUND}" "${BACKGROUND_FILE}"
+elif [ ! -f "${BACKGROUND_FILE}" ]; then
     echo "🎨 Creating background image..."
     python3 << 'PYTHON'
 from PIL import Image, ImageDraw, ImageFont
@@ -28,8 +32,12 @@ draw = ImageDraw.Draw(img)
 # Kiro purple: #8B5CF6
 purple = (139, 92, 246)
 
-# Draw arrow from left to right
-arrow_y = height // 2
+# Horizontal layout: [App] [Arrow + Text] [Applications]
+# Center everything vertically
+center_y = height // 2
+
+# Arrow in the middle
+arrow_y = center_y
 arrow_start_x = 220
 arrow_end_x = 380
 
@@ -45,18 +53,18 @@ draw.polygon([
 
 # Text
 try:
-    font_large = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
+    font_medium = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
 except:
-    font_large = ImageFont.load_default()
+    font_medium = ImageFont.load_default()
 
-# "Drag to Install" text
+# "Drag to Install" text (above arrow, centered)
 text = "Drag to Install"
-bbox = draw.textbbox((0, 0), text, font=font_large)
+bbox = draw.textbbox((0, 0), text, font=font_medium)
 text_width = bbox[2] - bbox[0]
-text_x = (width - text_width) // 2
-text_y = arrow_y - 60
+text_x = (arrow_start_x + arrow_end_x - text_width) // 2
+text_y = arrow_y - 35  # Just above the arrow
 
-draw.text((text_x, text_y), text, fill=purple, font=font_large)
+draw.text((text_x, text_y), text, fill=purple, font=font_medium)
 
 # Save
 img.save('dmg_background.png')
