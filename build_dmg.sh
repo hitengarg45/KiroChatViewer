@@ -5,7 +5,7 @@ set -e
 # Creates a DMG with large icons, custom background, and proper layout
 
 APP_NAME="KiroChatViewer"
-VERSION="1.0.0"
+VERSION="1.0.1"
 DMG_NAME="${APP_NAME}-v${VERSION}"
 VOLUME_NAME="${APP_NAME} v${VERSION}"
 SOURCE_APP="${APP_NAME}.app"
