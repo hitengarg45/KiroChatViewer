@@ -10,7 +10,7 @@ DMG_NAME="${APP_NAME}-v${VERSION}"
 VOLUME_NAME="${APP_NAME} v${VERSION}"
 SOURCE_APP="${APP_NAME}.app"
 OUTPUT_DMG="Releases/${DMG_NAME}.dmg"
-BACKGROUND_FILE="dmg_background.png"
+BACKGROUND_FILE="Resources/dmg_background.png"
 CUSTOM_BACKGROUND="/Users/ghiten/Documents/MyProjects/Icons/dmg.png"
 
 echo "🔨 Building beautiful DMG..."
