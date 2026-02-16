@@ -11,7 +11,7 @@ VOLUME_NAME="${APP_NAME} v${VERSION}"
 SOURCE_APP="${APP_NAME}.app"
 OUTPUT_DMG="Releases/${DMG_NAME}.dmg"
 BACKGROUND_FILE="Resources/dmg_background.png"
-CUSTOM_BACKGROUND="/Users/ghiten/Documents/MyProjects/Icons/dmg.png"
+CUSTOM_BACKGROUND="Resources/dmg_background_source.png"
 
 echo "🔨 Building beautiful DMG..."
 
@@ -20,9 +20,9 @@ if [ -f "${CUSTOM_BACKGROUND}" ]; then
     echo "🎨 Resizing custom background to fit DMG window..."
     python3 << 'PYTHON'
 from PIL import Image
-bg = Image.open('/Users/ghiten/Documents/MyProjects/Icons/dmg.png')
+bg = Image.open('Resources/dmg_background_source.png')
 bg_resized = bg.resize((800, 600), Image.Resampling.LANCZOS)
-bg_resized.save('dmg_background.png')
+bg_resized.save('Resources/dmg_background.png')
 PYTHON
 elif [ ! -f "${BACKGROUND_FILE}" ]; then
     echo "🎨 Creating background image..."
@@ -72,7 +72,7 @@ text_y = arrow_y - 35  # Just above the arrow
 draw.text((text_x, text_y), text, fill=purple, font=font_medium)
 
 # Save
-img.save('dmg_background.png')
+img.save('Resources/dmg_background.png')
 PYTHON
 fi
 
@@ -109,7 +109,7 @@ sleep 2
 
 # Set window properties with AppleScript
 echo "🎨 Styling DMG window..."
-osascript << EOA > /dev/null 2>&1
+osascript << EOA
 tell application "Finder"
     tell disk "${VOLUME_NAME}"
         open
@@ -120,7 +120,7 @@ tell application "Finder"
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 128
-        set background picture of viewOptions to file ".background:${BACKGROUND_FILE}"
+        set background picture of viewOptions to file ".background:dmg_background.png"
         set position of item "${APP_NAME}.app" of container window to {170, 300}
         set position of item "Applications" of container window to {620, 300}
         close
