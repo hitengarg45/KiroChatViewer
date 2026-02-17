@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var selectedFolder: BookmarkFolder?
     @State private var showNewFolderSheet = false
     @State private var newFolderName = ""
+    @State private var showFolderPicker = false
     
     var filteredConversations: [Conversation] {
         var convs = db.conversations
@@ -53,10 +54,16 @@ struct ContentView: View {
             }
             .navigationTitle("Kiro Chats")
             .toolbar {
+                Button { showFolderPicker = true } label: {
+                    Label("New Chat", systemImage: "plus.message")
+                }
+                .help("Start a new chat in a folder")
+                
                 Toggle(isOn: $isDarkMode) {
                     Label(isDarkMode ? "Dark" : "Light", systemImage: isDarkMode ? "moon.fill" : "sun.max.fill")
                 }
                 .toggleStyle(.button)
+                .help(isDarkMode ? "Switch to Light mode" : "Switch to Dark mode")
                 
                 Button {
                     withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
@@ -65,6 +72,21 @@ struct ContentView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .rotationEffect(.degrees(rotationAngle))
+                .help("Refresh conversation list")
+            }
+            .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder]) { result in
+                if case .success(let url) = result {
+                    let appleScript = """
+                    tell application "Terminal"
+                        activate
+                        do script "cd '\(url.path)' && kiro-cli chat"
+                    end tell
+                    """
+                    let proc = Process()
+                    proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                    proc.arguments = ["-e", appleScript]
+                    try? proc.run()
+                }
             }
         } detail: {
             if let conv = selectedConversation {

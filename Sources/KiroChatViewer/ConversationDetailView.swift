@@ -56,6 +56,7 @@ struct ConversationDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .padding()
+                    .help("Scroll to bottom")
                 }
             }
             
@@ -79,6 +80,7 @@ struct ConversationDetailView: View {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .rotationEffect(.degrees(rotationAngle))
+            .help("Refresh conversation")
             
             Spacer()
             
@@ -87,8 +89,10 @@ struct ConversationDetailView: View {
             } label: {
                 Label("Continue in Terminal", systemImage: "terminal")
             }
+            .help("Resume this conversation in Terminal")
             
             Button("Export") { exportToMarkdown() }
+                .help("Export as Markdown")
         }
         .fileExporter(
             isPresented: .constant(exportURL != nil),
