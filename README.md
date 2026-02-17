@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 1.0.1
+## Current Version: 2.0.0
 
-[Download Latest Release](Releases/KiroChatViewer-v1.0.1.dmg) (2.7 MB)
+[Download Latest Release](Releases/KiroChatViewer-v2.0.0.dmg) (2.8 MB)
 
 ## Features
 
@@ -14,16 +14,15 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 - 🌓 Light/Dark mode toggle
 - 📅 Sort by recent activity
 - 💬 Full markdown rendering (code blocks, formatting)
-- 🎨 Custom app icon (V3, no padding)
-- 🔄 Dual refresh buttons (list and conversation)
-- ⬇️ Scroll to bottom button for easy navigation
-- 💬 Conversations open at bottom showing latest messages
+- 🔧 Tool call display with collapsible results
+- 🗑️ Delete conversations from the database
+- ▶️ Continue/resume conversations in Terminal
 
 ## Installation
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v1.0.1.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v2.0.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -75,6 +74,25 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 2.0.0 (2026-02-18)
+
+**Major Feature Update**
+
+New Features:
+- ✅ Tool call display: see tool names, arguments, and collapsible results
+- ✅ Delete conversations via hover menu with confirmation dialog
+- ✅ Continue/resume conversations directly in Terminal
+- ✅ View in Terminal option from conversation list
+- ✅ Project fully portable (no hardcoded paths)
+- ✅ Test/release DMG build modes
+
+Improvements:
+- ✅ Two-pass tool result matching for accurate display
+- ✅ Orange-bordered tool cards with success/failure badges
+- ✅ Collapsible tool results (collapsed by default)
+- ✅ Auto-resume specific session via temp script
+- ✅ Separated toolbar layout (refresh left, actions right)
 
 ### Version 1.0.1 (2026-02-16)
 
