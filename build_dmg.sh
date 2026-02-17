@@ -2,18 +2,26 @@
 set -e
 
 # Beautiful DMG Builder for KiroChatViewer
-# Creates a DMG with large icons, custom background, and proper layout
+# Usage: ./build_dmg.sh          - builds test DMG for development
+#        ./build_dmg.sh release  - builds versioned release DMG
 
 APP_NAME="KiroChatViewer"
 VERSION="1.0.1"
-DMG_NAME="${APP_NAME}-v${VERSION}"
-VOLUME_NAME="${APP_NAME} v${VERSION}"
 SOURCE_APP="${APP_NAME}.app"
-OUTPUT_DMG="Releases/${DMG_NAME}.dmg"
 BACKGROUND_FILE="Resources/dmg_background.png"
 CUSTOM_BACKGROUND="Resources/dmg_background_source.png"
 
-echo "🔨 Building beautiful DMG..."
+if [ "$1" = "release" ]; then
+    DMG_NAME="${APP_NAME}-v${VERSION}"
+    VOLUME_NAME="${APP_NAME} v${VERSION}"
+    echo "🚀 Building RELEASE DMG (v${VERSION})..."
+else
+    DMG_NAME="${APP_NAME}-test"
+    VOLUME_NAME="${APP_NAME} Test"
+    echo "🧪 Building TEST DMG..."
+fi
+
+OUTPUT_DMG="Releases/${DMG_NAME}.dmg"
 
 # Resize custom background to fit DMG window (800x600)
 if [ -f "${CUSTOM_BACKGROUND}" ]; then
