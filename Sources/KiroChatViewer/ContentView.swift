@@ -98,7 +98,7 @@ struct ConversationRow: View {
                     Button {
                         resumeInTerminal(conversation)
                     } label: {
-                        Label("Resume in Terminal", systemImage: "terminal")
+                        Label("View in Terminal", systemImage: "terminal")
                     }
                     Divider()
                     Button(role: .destructive) {

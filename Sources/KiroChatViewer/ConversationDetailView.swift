@@ -80,6 +80,12 @@ struct ConversationDetailView: View {
             }
             .rotationEffect(.degrees(rotationAngle))
             
+            Button {
+                continueInTerminal()
+            } label: {
+                Label("Continue in Terminal", systemImage: "terminal")
+            }
+            
             Button("Export") { exportToMarkdown() }
         }
         .fileExporter(
@@ -88,6 +94,20 @@ struct ConversationDetailView: View {
             contentType: .plainText,
             defaultFilename: "conversation.md"
         ) { _ in exportURL = nil }
+    }
+    
+    private func continueInTerminal() {
+        let dir = conversation.directory
+        let appleScript = """
+        tell application "Terminal"
+            activate
+            do script "cd '\(dir)' && kiro-cli chat --resume-picker"
+        end tell
+        """
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        proc.arguments = ["-e", appleScript]
+        try? proc.run()
     }
     
     private func generateMarkdown() -> String {
