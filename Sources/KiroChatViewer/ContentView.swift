@@ -127,15 +127,24 @@ struct ConversationRow: View {
     
     private func resumeInTerminal(_ conversation: Conversation) {
         let dir = conversation.directory
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "cd '\(dir)' && kiro-cli chat --resume-picker"
-        end tell
-        """
-        if let appleScript = NSAppleScript(source: script) {
-            var error: NSDictionary?
-            appleScript.executeAndReturnError(&error)
+        let script = "cd '\(dir)' && kiro-cli chat --resume-picker"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", "Terminal"]
+        try? process.run()
+        
+        // Small delay then send the command
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            let appleScript = """
+            tell application "Terminal"
+                activate
+                do script "cd '\(dir)' && kiro-cli chat --resume-picker"
+            end tell
+            """
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            proc.arguments = ["-e", appleScript]
+            try? proc.run()
         }
     }
 }
