@@ -7,6 +7,7 @@ struct ConversationDetailView: View {
     @State private var exportURL: URL?
     @State private var rotationAngle: Double = 0
     @State private var isReloading = false
+    @State private var isAtBottom = true
     @EnvironmentObject var db: DatabaseManager
     @Binding var selectedConversation: Conversation?
     
@@ -14,7 +15,7 @@ struct ConversationDetailView: View {
         ZStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(conversation.title)
                                 .font(.title)
@@ -36,6 +37,8 @@ struct ConversationDetailView: View {
                         }
                         
                         Color.clear.frame(height: 1).id("bottom")
+                            .onAppear { withAnimation { isAtBottom = true } }
+                            .onDisappear { withAnimation { isAtBottom = false } }
                     }
                     .padding(.bottom, 40)
                 }
@@ -49,19 +52,22 @@ struct ConversationDetailView: View {
                         .padding(.bottom, 52)
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
+                    if !isAtBottom {
+                        Button {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.white, .purple)
+                                .shadow(radius: 4)
                         }
-                    } label: {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.white, .purple)
-                            .shadow(radius: 4)
+                        .buttonStyle(.plain)
+                        .help("Scroll to bottom")
+                        .padding()
+                        .transition(.opacity)
                     }
-                    .buttonStyle(.plain)
-                    .help("Scroll to bottom")
-                    .padding()
                 }
             }
             
