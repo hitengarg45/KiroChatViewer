@@ -60,4 +60,16 @@ class DatabaseManager: ObservableObject {
         
         return result
     }
+    
+    func deleteConversation(_ conversation: Conversation) {
+        do {
+            let db = try Connection(dbPath.path)
+            let table = Table("conversations_v2")
+            let conversationId = Expression<String>("conversation_id")
+            try db.run(table.filter(conversationId == conversation.id).delete())
+            conversations.removeAll { $0.id == conversation.id }
+        } catch {
+            self.error = "Delete failed: \(error.localizedDescription)"
+        }
+    }
 }

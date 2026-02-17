@@ -20,7 +20,12 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(filteredConversations, selection: $selectedConversation) { conv in
-                ConversationRow(conversation: conv)
+                ConversationRow(conversation: conv, onDelete: {
+                    if selectedConversation?.id == conv.id {
+                        selectedConversation = nil
+                    }
+                    db.deleteConversation(conv)
+                })
                     .tag(conv)
             }
             .searchable(text: $searchText, prompt: "Search conversations")
@@ -68,21 +73,48 @@ struct ContentView: View {
 
 struct ConversationRow: View {
     let conversation: Conversation
+    let onDelete: () -> Void
+    @State private var isHovering = false
+    @State private var showDeleteConfirm = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(conversation.title)
-                .lineLimit(2)
-            HStack {
-                Text(conversation.directory.split(separator: "/").last ?? "")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(conversation.updatedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(conversation.title)
+                    .lineLimit(2)
+                HStack {
+                    Text(conversation.directory.split(separator: "/").last ?? "")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(conversation.updatedAt, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            if isHovering {
+                Menu {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 24)
             }
         }
         .padding(.vertical, 4)
+        .onHover { isHovering = $0 }
+        .alert("Delete Conversation?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { onDelete() }
+        } message: {
+            Text("This will permanently delete this conversation from the database.")
+        }
     }
 }
