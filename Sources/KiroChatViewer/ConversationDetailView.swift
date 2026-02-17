@@ -80,6 +80,8 @@ struct ConversationDetailView: View {
             }
             .rotationEffect(.degrees(rotationAngle))
             
+            Spacer()
+            
             Button {
                 continueInTerminal()
             } label: {
@@ -98,10 +100,33 @@ struct ConversationDetailView: View {
     
     private func continueInTerminal() {
         let dir = conversation.directory
+        let sessionId = conversation.id
+        let dbPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/kiro-cli/data.sqlite3").path
+        
+        // Temp script: touch updated_at to make this session the latest, then resume
+        let tmpScript = "/tmp/kiro_resume_\(sessionId.prefix(8)).sh"
+        let script = """
+        #!/bin/bash
+        # Make this session the most recent so --resume picks it
+        sqlite3 '\(dbPath)' "UPDATE conversations_v2 SET updated_at = CAST(strftime('%s','now') * 1000 AS INTEGER) WHERE conversation_id = '\(sessionId)'"
+        cd '\(dir)'
+        rm -f '\(tmpScript)'
+        exec kiro-cli chat --resume
+        """
+        try? script.write(toFile: tmpScript, atomically: true, encoding: .utf8)
+        
+        // Make executable and run in Terminal
+        let chmod = Process()
+        chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        chmod.arguments = ["+x", tmpScript]
+        try? chmod.run()
+        chmod.waitUntilExit()
+        
         let appleScript = """
         tell application "Terminal"
             activate
-            do script "cd '\(dir)' && kiro-cli chat --resume-picker"
+            do script "'\(tmpScript)'"
         end tell
         """
         let proc = Process()
