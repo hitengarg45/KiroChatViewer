@@ -2,19 +2,11 @@ import SwiftUI
 import UniformTypeIdentifiers
 import MarkdownUI
 
-struct ViewOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct ConversationDetailView: View {
     let conversation: Conversation
     @State private var exportURL: URL?
     @State private var rotationAngle: Double = 0
     @State private var isReloading = false
-    @State private var showScrollButton = false
     @EnvironmentObject var db: DatabaseManager
     @Binding var selectedConversation: Conversation?
     
@@ -37,33 +29,26 @@ struct ConversationDetailView: View {
                         
                         Divider()
                         
-                        // Top anchor - when visible, we're scrolled up
-                        Color.clear
-                            .frame(height: 1)
-                            .id("top")
+                        Color.clear.frame(height: 1).id("top")
                         
                         ForEach(conversation.messages) { message in
                             MessageView(message: message)
                         }
                         
-                        // Bottom anchor
-                        Color.clear
-                            .frame(height: 1)
-                            .id("bottom")
+                        Color.clear.frame(height: 1).id("bottom")
                     }
                     .padding(.bottom, 40)
                 }
                 .opacity(isReloading ? 0.3 : 1.0)
                 .onAppear {
-                    // Jump to bottom immediately (no animation) when conversation first appears
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    Button(action: {
+                    Button {
                         withAnimation(.easeOut(duration: 0.3)) {
                             proxy.scrollTo("bottom", anchor: .bottom)
                         }
-                    }) {
+                    } label: {
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 32))
                             .foregroundStyle(.white, .purple)
@@ -75,58 +60,55 @@ struct ConversationDetailView: View {
             }
             
             if isReloading {
-                ProgressView()
-                    .scaleEffect(1.5)
+                ProgressView().scaleEffect(1.5)
             }
         }
         .toolbar {
-            Button(action: {
-                withAnimation(.linear(duration: 0.5)) {
-                    rotationAngle += 360
-                }
-                
+            Button {
+                withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
                 isReloading = true
-                
                 Task {
                     db.loadConversations()
-                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
-                    
+                    try? await Task.sleep(nanoseconds: 300_000_000)
                     await MainActor.run {
-                        let id = conversation.id
-                        selectedConversation = db.conversations.first { $0.id == id }
+                        selectedConversation = db.conversations.first { $0.id == conversation.id }
                         isReloading = false
                     }
                 }
-            }) {
+            } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .rotationEffect(.degrees(rotationAngle))
             
-            Button("Export") {
-                exportToMarkdown()
-            }
+            Button("Export") { exportToMarkdown() }
         }
         .fileExporter(
             isPresented: .constant(exportURL != nil),
             document: TextDocument(text: generateMarkdown()),
             contentType: .plainText,
             defaultFilename: "conversation.md"
-        ) { _ in
-            exportURL = nil
-        }
+        ) { _ in exportURL = nil }
     }
     
     private func generateMarkdown() -> String {
         var md = "# \(conversation.title)\n\n"
         md += "**Directory:** \(conversation.directory)\n\n"
-        md += "**Updated:** \(conversation.updatedAt.formatted())\n\n"
-        md += "---\n\n"
-        
+        md += "**Updated:** \(conversation.updatedAt.formatted())\n\n---\n\n"
         for message in conversation.messages {
-            md += "## \(message.role == .user ? "User" : "Assistant")\n\n"
-            md += message.content + "\n\n"
+            switch message.role {
+            case .user:
+                md += "## You\n\n\(message.content)\n\n"
+            case .tool:
+                if !message.content.isEmpty { md += "> \(message.content)\n\n" }
+                for tc in message.toolCalls {
+                    md += "### 🔧 \(tc.name)\n\n"
+                    if !tc.argsDescription.isEmpty { md += "**Args:** \(tc.argsDescription)\n\n" }
+                    if let r = tc.result { md += "<details><summary>Result (\(r.status))</summary>\n\n```\n\(r.content.prefix(2000))\n```\n</details>\n\n" }
+                }
+            case .assistant:
+                md += "## Kiro\n\n\(message.content)\n\n"
+            }
         }
-        
         return md
     }
     
@@ -138,40 +120,165 @@ struct ConversationDetailView: View {
     }
 }
 
+// MARK: - Message View
+
 struct MessageView: View {
     let message: Message
     
     var body: some View {
+        switch message.role {
+        case .user:
+            userView
+        case .tool:
+            toolView
+        case .assistant:
+            assistantView
+        }
+    }
+    
+    private var userView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: message.role == .user ? "person.circle.fill" : "sparkles")
-                    .foregroundStyle(message.role == .user ? .blue : .purple)
-                Text(message.role == .user ? "You" : "Kiro")
-                    .font(.headline)
+                Image(systemName: "person.circle.fill").foregroundStyle(.blue)
+                Text("You").font(.headline)
             }
-            
             Markdown(message.content)
                 .textSelection(.enabled)
                 .padding()
-                .background(message.role == .user ? Color.blue.opacity(0.1) : Color.purple.opacity(0.1))
+                .background(Color.blue.opacity(0.1))
                 .cornerRadius(8)
         }
         .padding(.horizontal)
     }
+    
+    private var assistantView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "sparkles").foregroundStyle(.purple)
+                Text("Kiro").font(.headline)
+            }
+            Markdown(message.content)
+                .textSelection(.enabled)
+                .padding()
+                .background(Color.purple.opacity(0.1))
+                .cornerRadius(8)
+        }
+        .padding(.horizontal)
+    }
+    
+    private var toolView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Show assistant's explanatory text if present
+            if !message.content.isEmpty {
+                HStack {
+                    Image(systemName: "sparkles").foregroundStyle(.purple)
+                    Text("Kiro").font(.headline)
+                }
+                .padding(.horizontal)
+                Markdown(message.content)
+                    .textSelection(.enabled)
+                    .padding()
+                    .padding(.horizontal)
+                    .background(Color.purple.opacity(0.05))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+            }
+            
+            // Tool calls
+            ForEach(message.toolCalls) { call in
+                ToolCallView(call: call)
+            }
+        }
+    }
 }
+
+// MARK: - Tool Call View
+
+struct ToolCallView: View {
+    let call: ToolCall
+    @State private var isExpanded = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // Tool header
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+                Text(call.name)
+                    .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                    .foregroundStyle(.orange)
+                
+                if !call.argsDescription.isEmpty {
+                    Text("(\(call.argsDescription))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                
+                Spacer()
+                
+                if let result = call.result {
+                    Text(result.status)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(result.status == "Success" ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
+                        .foregroundStyle(result.status == "Success" ? .green : .red)
+                        .cornerRadius(4)
+                }
+            }
+            
+            // Collapsible result
+            if let result = call.result, !result.content.isEmpty {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                        Text("Result")
+                            .font(.caption)
+                        Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                
+                if isExpanded {
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        Text(result.content.prefix(5000))
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(8)
+                    }
+                    .frame(maxHeight: 300)
+                    .background(Color(.textBackgroundColor).opacity(0.5))
+                    .cornerRadius(6)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.05))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - File Document
 
 struct TextDocument: FileDocument {
     static var readableContentTypes = [UTType.plainText]
     var text: String
-    
-    init(text: String) {
-        self.text = text
-    }
-    
-    init(configuration: ReadConfiguration) throws {
-        text = ""
-    }
-    
+    init(text: String) { self.text = text }
+    init(configuration: ReadConfiguration) throws { text = "" }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: text.data(using: .utf8)!)
     }
