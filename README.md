@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 2.0.0
+## Current Version: 2.1.0
 
-[Download Latest Release](Releases/KiroChatViewer-v2.0.0.dmg) (2.8 MB)
+[Download Latest Release](Releases/KiroChatViewer-v2.1.0.dmg) (2.9 MB)
 
 ## Features
 
@@ -16,13 +16,16 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 - 💬 Full markdown rendering (code blocks, formatting)
 - 🔧 Tool call display with collapsible results
 - 🗑️ Delete conversations from the database
-- ▶️ Continue/resume conversations in Terminal
+- ▶️ Continue/resume conversations in Terminal (expandable floating button)
+- 📁 Bookmark folders: Starred + custom folders to organize conversations
+- ➕ Start new chat in any folder from the app
+- 💡 Tooltips on all buttons
 
 ## Installation
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v2.0.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v2.1.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -74,6 +77,25 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 2.1.0 (2026-02-18)
+
+**Bookmarks, New Chat & UI Polish**
+
+New Features:
+- ✅ Bookmark folders: built-in "Starred" + create custom folders
+- ✅ Bookmark conversations to any folder via hover menu
+- ✅ Filter conversations by folder
+- ✅ Rename and delete custom folders
+- ✅ Start new chat in any system folder (folder picker → opens Terminal)
+- ✅ Expandable floating "Continue in Terminal" button (pill animation on hover)
+- ✅ Tooltips on all toolbar buttons
+
+Improvements:
+- ✅ Bookmark indicator (orange icon) on bookmarked conversations
+- ✅ Bookmarks persisted to `~/Library/Application Support/KiroChatViewer/bookmarks.json`
+- ✅ Folder section with conversation counts in sidebar
+- ✅ Separated floating buttons (no layout shift on hover)
 
 ### Version 2.0.0 (2026-02-18)
 
