@@ -95,6 +95,12 @@ struct ConversationRow: View {
             
             if isHovering {
                 Menu {
+                    Button {
+                        resumeInTerminal(conversation)
+                    } label: {
+                        Label("Resume in Terminal", systemImage: "terminal")
+                    }
+                    Divider()
                     Button(role: .destructive) {
                         showDeleteConfirm = true
                     } label: {
@@ -116,6 +122,20 @@ struct ConversationRow: View {
             Button("Delete", role: .destructive) { onDelete() }
         } message: {
             Text("This will permanently delete this conversation from the database.")
+        }
+    }
+    
+    private func resumeInTerminal(_ conversation: Conversation) {
+        let dir = conversation.directory
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "cd '\(dir)' && kiro-cli chat --resume-picker"
+        end tell
+        """
+        if let appleScript = NSAppleScript(source: script) {
+            var error: NSDictionary?
+            appleScript.executeAndReturnError(&error)
         }
     }
 }
