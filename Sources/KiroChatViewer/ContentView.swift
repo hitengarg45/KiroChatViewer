@@ -51,6 +51,7 @@ struct ContentView: View {
                     .tag(conv)
                 }
                 .searchable(text: $searchText, prompt: "Search conversations")
+                .padding(.top, 4)
             }
             .navigationTitle("Kiro Chats")
             .toolbar {
