@@ -2,33 +2,55 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var db = DatabaseManager()
+    @StateObject private var bookmarks = BookmarkManager()
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
     @State private var rotationAngle: Double = 0
+    @State private var selectedFolder: BookmarkFolder?
+    @State private var showNewFolderSheet = false
+    @State private var newFolderName = ""
     
     var filteredConversations: [Conversation] {
-        if searchText.isEmpty {
-            return db.conversations
+        var convs = db.conversations
+        
+        // Filter by folder if selected
+        if let folder = selectedFolder {
+            convs = convs.filter { folder.conversationIds.contains($0.id) }
         }
-        return db.conversations.filter { conv in
-            conv.title.localizedCaseInsensitiveContains(searchText) ||
-            conv.messages.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
+        
+        // Filter by search
+        if !searchText.isEmpty {
+            convs = convs.filter { conv in
+                conv.title.localizedCaseInsensitiveContains(searchText) ||
+                conv.messages.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
+            }
         }
+        return convs
     }
     
     var body: some View {
         NavigationSplitView {
-            List(filteredConversations, selection: $selectedConversation) { conv in
-                ConversationRow(conversation: conv, onDelete: {
-                    if selectedConversation?.id == conv.id {
-                        selectedConversation = nil
-                    }
-                    db.deleteConversation(conv)
-                })
+            VStack(spacing: 0) {
+                // Folders section
+                folderSection
+                
+                Divider()
+                
+                // Conversations list
+                List(filteredConversations, selection: $selectedConversation) { conv in
+                    ConversationRow(
+                        conversation: conv,
+                        bookmarks: bookmarks,
+                        onDelete: {
+                            if selectedConversation?.id == conv.id { selectedConversation = nil }
+                            db.deleteConversation(conv)
+                        }
+                    )
                     .tag(conv)
+                }
+                .searchable(text: $searchText, prompt: "Search conversations")
             }
-            .searchable(text: $searchText, prompt: "Search conversations")
             .navigationTitle("Kiro Chats")
             .toolbar {
                 Toggle(isOn: $isDarkMode) {
@@ -36,17 +58,10 @@ struct ContentView: View {
                 }
                 .toggleStyle(.button)
                 
-                Button(action: {
-                    // Animate rotation
-                    withAnimation(.linear(duration: 0.5)) {
-                        rotationAngle += 360
-                    }
-                    
-                    // Just reload the list
-                    Task {
-                        db.loadConversations()
-                    }
-                }) {
+                Button {
+                    withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
+                    Task { db.loadConversations() }
+                } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .rotationEffect(.degrees(rotationAngle))
@@ -61,6 +76,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .environmentObject(bookmarks)
         .preferredColorScheme(isDarkMode ? .dark : .light)
         .onAppear(perform: db.loadConversations)
         .alert("Error", isPresented: .constant(db.error != nil)) {
@@ -68,11 +84,171 @@ struct ContentView: View {
         } message: {
             Text(db.error ?? "")
         }
+        .sheet(isPresented: $showNewFolderSheet) {
+            NewFolderSheet(name: $newFolderName) {
+                if !newFolderName.trimmingCharacters(in: .whitespaces).isEmpty {
+                    bookmarks.createFolder(name: newFolderName.trimmingCharacters(in: .whitespaces))
+                }
+                newFolderName = ""
+            }
+        }
+    }
+    
+    private var folderSection: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Folders")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                Spacer()
+                Button { showNewFolderSheet = true } label: {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            
+            // All conversations
+            FolderRow(
+                name: "All Conversations",
+                icon: "tray.full",
+                count: db.conversations.count,
+                isSelected: selectedFolder == nil
+            )
+            .onTapGesture { selectedFolder = nil }
+            
+            // Bookmark folders
+            ForEach(bookmarks.folders) { folder in
+                FolderRow(
+                    name: folder.name,
+                    icon: folder.isBuiltIn ? "star.fill" : "folder.fill",
+                    iconColor: folder.isBuiltIn ? .yellow : .blue,
+                    count: folder.conversationIds.count,
+                    isSelected: selectedFolder?.id == folder.id,
+                    isCustom: !folder.isBuiltIn,
+                    onDelete: { bookmarks.deleteFolder(folder) },
+                    onRename: { bookmarks.renameFolder(folder, to: $0) }
+                )
+                .onTapGesture { selectedFolder = folder }
+            }
+        }
+        .padding(.bottom, 4)
     }
 }
 
+// MARK: - Folder Row
+
+struct FolderRow: View {
+    let name: String
+    let icon: String
+    var iconColor: Color = .secondary
+    var count: Int
+    var isSelected: Bool
+    var isCustom: Bool = false
+    var onDelete: (() -> Void)?
+    var onRename: ((String) -> Void)?
+    
+    @State private var isHovering = false
+    @State private var showRename = false
+    @State private var renameText = ""
+    @State private var showDeleteConfirm = false
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(iconColor)
+                .frame(width: 16)
+            Text(name)
+                .font(.subheadline)
+                .lineLimit(1)
+            Spacer()
+            Text("\(count)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            
+            if isCustom && isHovering {
+                Menu {
+                    Button {
+                        renameText = name
+                        showRename = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    Divider()
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label("Delete Folder", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .frame(width: 16)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .cornerRadius(6)
+        .padding(.horizontal, 4)
+        .onHover { isHovering = $0 }
+        .alert("Delete Folder?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { onDelete?() }
+        } message: {
+            Text("Bookmarks in this folder will be removed.")
+        }
+        .sheet(isPresented: $showRename) {
+            NewFolderSheet(name: $renameText, title: "Rename Folder", buttonLabel: "Rename") {
+                if !renameText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    onRename?(renameText.trimmingCharacters(in: .whitespaces))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - New Folder Sheet
+
+struct NewFolderSheet: View {
+    @Binding var name: String
+    var title: String = "New Folder"
+    var buttonLabel: String = "Create"
+    let onSubmit: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(title).font(.headline)
+            TextField("Folder name", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 250)
+                .onSubmit { onSubmit(); dismiss() }
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(buttonLabel) { onSubmit(); dismiss() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+    }
+}
+
+// MARK: - Conversation Row
+
 struct ConversationRow: View {
     let conversation: Conversation
+    @ObservedObject var bookmarks: BookmarkManager
     let onDelete: () -> Void
     @State private var isHovering = false
     @State private var showDeleteConfirm = false
@@ -80,8 +256,15 @@ struct ConversationRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(conversation.title)
-                    .lineLimit(2)
+                HStack(spacing: 4) {
+                    if bookmarks.isBookmarked(conversationId: conversation.id) {
+                        Image(systemName: "bookmark.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    Text(conversation.title)
+                        .lineLimit(2)
+                }
                 HStack {
                     Text(conversation.directory.split(separator: "/").last ?? "")
                         .font(.caption)
@@ -95,6 +278,27 @@ struct ConversationRow: View {
             
             if isHovering {
                 Menu {
+                    // Bookmark submenu
+                    Menu {
+                        ForEach(bookmarks.folders) { folder in
+                            let isIn = folder.conversationIds.contains(conversation.id)
+                            Button {
+                                if isIn {
+                                    bookmarks.removeBookmark(conversationId: conversation.id, from: folder.id)
+                                } else {
+                                    bookmarks.addBookmark(conversationId: conversation.id, to: folder.id)
+                                }
+                            } label: {
+                                HStack {
+                                    Text(folder.name)
+                                    if isIn { Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Bookmark", systemImage: "bookmark")
+                    }
+                    
                     Button {
                         resumeInTerminal(conversation)
                     } label: {
@@ -127,13 +331,6 @@ struct ConversationRow: View {
     
     private func resumeInTerminal(_ conversation: Conversation) {
         let dir = conversation.directory
-        let script = "cd '\(dir)' && kiro-cli chat --resume-picker"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", "Terminal"]
-        try? process.run()
-        
-        // Small delay then send the command
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             let appleScript = """
             tell application "Terminal"
