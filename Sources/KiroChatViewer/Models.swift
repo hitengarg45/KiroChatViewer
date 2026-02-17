@@ -8,30 +8,31 @@ struct Conversation: Identifiable, Codable, Hashable {
     let history: [[MessageWrapper]]
     
     var messages: [Message] {
-        var result: [Message] = []
-        var pendingToolResults: [String: ToolResult] = [:] // tool_use_id -> result
-        
+        // First pass: collect all tool results by tool_use_id
+        var allToolResults: [String: ToolResult] = [:]
         for pair in history {
             for wrapper in pair {
-                // Collect tool results from ToolUseResults entries
                 if let toolResults = wrapper.toolUseResults {
                     for tr in toolResults {
-                        pendingToolResults[tr.toolUseId] = tr
+                        allToolResults[tr.toolUseId] = tr
                     }
-                    continue
                 }
+            }
+        }
+        
+        // Second pass: build messages, attaching results to tool calls
+        var result: [Message] = []
+        for pair in history {
+            for wrapper in pair {
+                if wrapper.toolUseResults != nil { continue }
                 
                 if let prompt = wrapper.prompt {
                     result.append(Message(role: .user, content: prompt))
                 } else if let toolUse = wrapper.toolUse {
-                    // Attach results to tool calls
                     var calls = toolUse.toolCalls
                     for i in calls.indices {
-                        if let tr = pendingToolResults[calls[i].id] {
-                            calls[i].result = tr
-                        }
+                        calls[i].result = allToolResults[calls[i].id]
                     }
-                    pendingToolResults.removeAll()
                     result.append(Message(role: .tool, content: toolUse.content, toolCalls: calls))
                 } else if let response = wrapper.responseText {
                     result.append(Message(role: .assistant, content: response))
