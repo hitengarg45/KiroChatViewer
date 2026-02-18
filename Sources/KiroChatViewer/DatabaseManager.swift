@@ -23,15 +23,30 @@ class DatabaseManager: ObservableObject {
         isLoading = true
         error = nil
         do {
-            let convs = try await fetchConversations()
-            self.conversations = convs.sorted { $0.updatedAt > $1.updatedAt }
+            // First batch: load 50 immediately
+            let firstBatch = try await fetchConversations(limit: 50, offset: 0)
+            self.conversations = firstBatch.sorted { $0.updatedAt > $1.updatedAt }
+            
+            // Continue loading rest in background
+            let remaining = try await fetchConversations(limit: nil, offset: 50)
+            let allConvs = firstBatch + remaining
+            
+            // Remove duplicates by ID
+            var seen = Set<String>()
+            let unique = allConvs.filter { conv in
+                if seen.contains(conv.id) { return false }
+                seen.insert(conv.id)
+                return true
+            }
+            
+            self.conversations = unique.sorted { $0.updatedAt > $1.updatedAt }
         } catch {
             self.error = error.localizedDescription
         }
         self.isLoading = false
     }
     
-    private func fetchConversations() async throws -> [Conversation] {
+    private func fetchConversations(limit: Int? = nil, offset: Int = 0) async throws -> [Conversation] {
         let db = try Connection(dbPath.path)
         let table = Table("conversations_v2")
         let key = Expression<String>("key")
@@ -44,7 +59,12 @@ class DatabaseManager: ObservableObject {
         
         var result: [Conversation] = []
         
-        for row in try db.prepare(table) {
+        var query = table.order(updatedAt.desc)
+        if let limit = limit {
+            query = query.limit(limit, offset: offset)
+        }
+        
+        for row in try db.prepare(query) {
             let directory = row[key]
             
             // Skip conversations in kiro-cli's own directories
