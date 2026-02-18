@@ -187,6 +187,7 @@ struct MessageView: View {
                 Text("You").font(.headline)
             }
             Markdown(message.content)
+                .markdownTheme(.kiro)
                 .textSelection(.enabled)
                 .padding()
                 .background(Color.blue.opacity(0.1))
@@ -202,6 +203,7 @@ struct MessageView: View {
                 Text("Kiro").font(.headline)
             }
             Markdown(message.content)
+                .markdownTheme(.kiro)
                 .textSelection(.enabled)
                 .padding()
                 .background(Color.purple.opacity(0.1))
@@ -220,6 +222,7 @@ struct MessageView: View {
                 }
                 .padding(.horizontal)
                 Markdown(message.content)
+                    .markdownTheme(.kiro)
                     .textSelection(.enabled)
                     .padding()
                     .padding(.horizontal)

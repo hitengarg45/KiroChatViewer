@@ -6,14 +6,16 @@ let package = Package(
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.0"),
-        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0")
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
+        .package(url: "https://github.com/JohnSundell/Splash.git", from: "0.16.0")
     ],
     targets: [
         .executableTarget(
             name: "KiroChatViewer",
             dependencies: [
                 .product(name: "SQLite", package: "SQLite.swift"),
-                .product(name: "MarkdownUI", package: "swift-markdown-ui")
+                .product(name: "MarkdownUI", package: "swift-markdown-ui"),
+                .product(name: "Splash", package: "Splash")
             ]
         )
     ]
