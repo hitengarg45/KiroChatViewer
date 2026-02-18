@@ -93,6 +93,10 @@ mkdir -p "${TMP_DIR}/.background"
 echo "📦 Copying app..."
 cp -R "${SOURCE_APP}" "${TMP_DIR}/"
 
+# Ad-hoc code sign so recipients don't get "app is damaged" error
+echo "🔏 Code signing app..."
+codesign --force --deep --sign - "${TMP_DIR}/${APP_NAME}.app"
+
 # Copy background
 cp "${BACKGROUND_FILE}" "${TMP_DIR}/.background/"
 
