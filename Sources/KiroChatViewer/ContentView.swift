@@ -13,8 +13,22 @@ struct ContentView: View {
     @State private var newFolderName = ""
     @State private var showFolderPicker = false
     @AppStorage("isGroupedByWorkspace") private var isGroupedByWorkspace: Bool = false
+    @AppStorage("groupSortOrder") private var groupSortOrder: GroupSortOrder = .name
+    @AppStorage("flatSortOrder") private var flatSortOrder: FlatSortOrder = .latest
     @State private var expandedDirectories: Set<String> = []
     @State private var showTimeline = false
+    
+    enum GroupSortOrder: String {
+        case name = "Name"
+        case latestConversation = "Latest Conversation"
+        case oldestConversation = "Oldest Conversation"
+    }
+    
+    enum FlatSortOrder: String {
+        case title = "Title"
+        case latest = "Latest"
+        case oldest = "Oldest"
+    }
     
     var filteredConversations: [Conversation] {
         var convs = db.conversations
@@ -33,20 +47,30 @@ struct ContentView: View {
             }
         }
         
-        // Sort: pinned first, then by date
+        // Sort based on flat sort order
         return convs.sorted { lhs, rhs in
             let lhsPinned = titles.isPinned(lhs.id)
             let rhsPinned = titles.isPinned(rhs.id)
             if lhsPinned != rhsPinned {
                 return lhsPinned
             }
-            return lhs.updatedAt > rhs.updatedAt
+            
+            switch flatSortOrder {
+            case .title:
+                let lhsTitle = titles.getTitle(for: lhs.id) ?? lhs.title
+                let rhsTitle = titles.getTitle(for: rhs.id) ?? rhs.title
+                return lhsTitle.localizedCaseInsensitiveCompare(rhsTitle) == .orderedAscending
+            case .latest:
+                return lhs.updatedAt > rhs.updatedAt
+            case .oldest:
+                return lhs.updatedAt < rhs.updatedAt
+            }
         }
     }
     
     var groupedConversations: [(directory: String, conversations: [Conversation])] {
         let grouped = Dictionary(grouping: filteredConversations) { $0.directory }
-        return grouped.map { (directory: $0.key, conversations: $0.value.sorted { lhs, rhs in
+        let mapped = grouped.map { (directory: $0.key, conversations: $0.value.sorted { lhs, rhs in
             let lhsPinned = titles.isPinned(lhs.id)
             let rhsPinned = titles.isPinned(rhs.id)
             if lhsPinned != rhsPinned {
@@ -54,7 +78,15 @@ struct ContentView: View {
             }
             return lhs.updatedAt > rhs.updatedAt
         }) }
-            .sorted { $0.directory < $1.directory }
+        
+        switch groupSortOrder {
+        case .name:
+            return mapped.sorted { $0.directory < $1.directory }
+        case .latestConversation:
+            return mapped.sorted { ($0.conversations.first?.updatedAt ?? .distantPast) > ($1.conversations.first?.updatedAt ?? .distantPast) }
+        case .oldestConversation:
+            return mapped.sorted { ($0.conversations.last?.updatedAt ?? .distantFuture) < ($1.conversations.last?.updatedAt ?? .distantFuture) }
+        }
     }
     
     var body: some View {
@@ -156,6 +188,25 @@ struct ContentView: View {
                 }
                 .toggleStyle(.button)
                 .help(isGroupedByWorkspace ? "Show flat list" : "Group by workspace")
+                
+                Menu {
+                    if isGroupedByWorkspace {
+                        Picker("Sort Groups By", selection: $groupSortOrder) {
+                            Text("Name").tag(GroupSortOrder.name)
+                            Text("Latest Conversation").tag(GroupSortOrder.latestConversation)
+                            Text("Oldest Conversation").tag(GroupSortOrder.oldestConversation)
+                        }
+                    } else {
+                        Picker("Sort By", selection: $flatSortOrder) {
+                            Text("Title").tag(FlatSortOrder.title)
+                            Text("Latest").tag(FlatSortOrder.latest)
+                            Text("Oldest").tag(FlatSortOrder.oldest)
+                        }
+                    }
+                } label: {
+                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                }
+                .help(isGroupedByWorkspace ? "Sort workspace groups" : "Sort conversations")
                 
                 Button { showTimeline = true } label: {
                     Label("Timeline", systemImage: "clock")
