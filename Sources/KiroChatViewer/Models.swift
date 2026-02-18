@@ -1,11 +1,41 @@
 import Foundation
 
-struct Conversation: Identifiable, Codable, Hashable {
+struct Conversation: Identifiable, Hashable, Codable {
     let id: String
     let directory: String
     let createdAt: Date
     let updatedAt: Date
     let history: [[MessageWrapper]]
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "conversation_id"
+        case history
+    }
+    
+    init(id: String, directory: String, createdAt: Date, updatedAt: Date, history: [[MessageWrapper]]) {
+        self.id = id
+        self.directory = directory
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.history = history
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        
+        if let arrayFormat = try? container.decode([[MessageWrapper]].self, forKey: .history) {
+            history = arrayFormat
+        } else if let dictFormat = try? container.decode([MessagePair].self, forKey: .history) {
+            history = dictFormat.map { [$0.user, $0.assistant] }
+        } else {
+            history = []
+        }
+        
+        directory = ""
+        createdAt = Date()
+        updatedAt = Date()
+    }
     
     var messages: [Message] {
         // First pass: collect all tool results by tool_use_id
@@ -49,38 +79,9 @@ struct Conversation: Identifiable, Codable, Hashable {
     static func == (lhs: Conversation, rhs: Conversation) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     
-    enum CodingKeys: String, CodingKey {
-        case id = "conversation_id"
-        case history
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        
-        if let arrayFormat = try? container.decode([[MessageWrapper]].self, forKey: .history) {
-            history = arrayFormat
-        } else if let dictFormat = try? container.decode([MessagePair].self, forKey: .history) {
-            history = dictFormat.map { [$0.user, $0.assistant] }
-        } else {
-            history = []
-        }
-        directory = ""
-        createdAt = Date()
-        updatedAt = Date()
-    }
-    
     struct MessagePair: Codable {
         let user: MessageWrapper
         let assistant: MessageWrapper
-    }
-    
-    init(id: String, directory: String, createdAt: Date, updatedAt: Date, history: [[MessageWrapper]]) {
-        self.id = id
-        self.directory = directory
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.history = history
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var db = DatabaseManager()
     @StateObject private var bookmarks = BookmarkManager()
+    @StateObject private var titles = TitleManager()
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
@@ -26,7 +27,8 @@ struct ContentView: View {
         // Filter by search
         if !searchText.isEmpty {
             convs = convs.filter { conv in
-                conv.title.localizedCaseInsensitiveContains(searchText) ||
+                let displayTitle = titles.getTitle(for: conv.id) ?? conv.title
+                return displayTitle.localizedCaseInsensitiveContains(searchText) ||
                 conv.messages.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
             }
         }
@@ -67,6 +69,7 @@ struct ContentView: View {
                                     ConversationRow(
                                         conversation: conv,
                                         bookmarks: bookmarks,
+                                        titles: titles,
                                         onDelete: {
                                             if selectedConversation?.id == conv.id { selectedConversation = nil }
                                             db.deleteConversation(conv)
@@ -108,6 +111,7 @@ struct ContentView: View {
                         ConversationRow(
                             conversation: conv,
                             bookmarks: bookmarks,
+                            titles: titles,
                             onDelete: {
                                 if selectedConversation?.id == conv.id { selectedConversation = nil }
                                 db.deleteConversation(conv)
@@ -390,9 +394,16 @@ struct NewFolderSheet: View {
 struct ConversationRow: View {
     let conversation: Conversation
     @ObservedObject var bookmarks: BookmarkManager
+    @ObservedObject var titles: TitleManager
     let onDelete: () -> Void
     @State private var isHovering = false
     @State private var showDeleteConfirm = false
+    @State private var showRenameDialog = false
+    @State private var editedTitle = ""
+    
+    var displayTitle: String {
+        titles.getTitle(for: conversation.id) ?? conversation.title
+    }
     
     var body: some View {
         HStack {
@@ -403,7 +414,7 @@ struct ConversationRow: View {
                             .font(.caption2)
                             .foregroundStyle(.orange)
                     }
-                    Text(conversation.title)
+                    Text(displayTitle)
                         .lineLimit(2)
                 }
                 HStack {
@@ -419,6 +430,13 @@ struct ConversationRow: View {
             
             if isHovering {
                 Menu {
+                    Button {
+                        editedTitle = displayTitle
+                        showRenameDialog = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    
                     // Bookmark submenu
                     Menu {
                         ForEach(bookmarks.folders) { folder in
@@ -467,6 +485,13 @@ struct ConversationRow: View {
             Button("Delete", role: .destructive) { onDelete() }
         } message: {
             Text("This will permanently delete this conversation from the database.")
+        }
+        .alert("Rename Conversation", isPresented: $showRenameDialog) {
+            TextField("Title", text: $editedTitle)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                titles.setTitle(editedTitle, for: conversation.id)
+            }
         }
     }
     

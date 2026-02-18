@@ -40,16 +40,25 @@ class DatabaseManager: ObservableObject {
         let createdAt = Expression<Int64>("created_at")
         let updatedAt = Expression<Int64>("updated_at")
         
+        let kiroCliPath = NSHomeDirectory() + "/Library/Application Support/kiro-cli"
+        
         var result: [Conversation] = []
         
         for row in try db.prepare(table) {
+            let directory = row[key]
+            
+            // Skip conversations in kiro-cli's own directories
+            if directory.hasPrefix(kiroCliPath) {
+                continue
+            }
+            
             guard let data = row[value].data(using: .utf8) else { continue }
             
             do {
                 var conv = try JSONDecoder().decode(Conversation.self, from: data)
                 conv = Conversation(
                     id: conv.id,
-                    directory: row[key],
+                    directory: directory,
                     createdAt: Date(timeIntervalSince1970: Double(row[createdAt]) / 1000),
                     updatedAt: Date(timeIntervalSince1970: Double(row[updatedAt]) / 1000),
                     history: conv.history
