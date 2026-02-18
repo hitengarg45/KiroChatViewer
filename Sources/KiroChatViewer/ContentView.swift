@@ -32,12 +32,28 @@ struct ContentView: View {
                 conv.messages.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
             }
         }
-        return convs
+        
+        // Sort: pinned first, then by date
+        return convs.sorted { lhs, rhs in
+            let lhsPinned = titles.isPinned(lhs.id)
+            let rhsPinned = titles.isPinned(rhs.id)
+            if lhsPinned != rhsPinned {
+                return lhsPinned
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }
     }
     
     var groupedConversations: [(directory: String, conversations: [Conversation])] {
         let grouped = Dictionary(grouping: filteredConversations) { $0.directory }
-        return grouped.map { (directory: $0.key, conversations: $0.value.sorted { $0.updatedAt > $1.updatedAt }) }
+        return grouped.map { (directory: $0.key, conversations: $0.value.sorted { lhs, rhs in
+            let lhsPinned = titles.isPinned(lhs.id)
+            let rhsPinned = titles.isPinned(rhs.id)
+            if lhsPinned != rhsPinned {
+                return lhsPinned
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }) }
             .sorted { $0.directory < $1.directory }
     }
     
@@ -409,6 +425,11 @@ struct ConversationRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
+                    if titles.isPinned(conversation.id) {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
                     if bookmarks.isBookmarked(conversationId: conversation.id) {
                         Image(systemName: "bookmark.fill")
                             .font(.caption2)
@@ -430,6 +451,13 @@ struct ConversationRow: View {
             
             if isHovering {
                 Menu {
+                    Button {
+                        titles.togglePin(for: conversation.id)
+                    } label: {
+                        Label(titles.isPinned(conversation.id) ? "Unpin" : "Pin", 
+                              systemImage: titles.isPinned(conversation.id) ? "pin.slash" : "pin")
+                    }
+                    
                     Button {
                         editedTitle = displayTitle
                         showRenameDialog = true
