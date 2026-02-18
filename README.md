@@ -2,33 +2,36 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.0.0
+## Current Version: 3.1.0
 
-[Download Latest Release](Releases/KiroChatViewer-v3.0.0.dmg) (2.9 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.1.0.dmg) (3.1 MB)
 
 ## Features
 
 - 📝 View all saved Kiro CLI conversations
 - 🔍 Search across conversation titles and content
+- 🏷️ **Rename conversations with custom titles**
+- 📌 **Pin important conversations to the top**
+- 🔄 **Flexible sorting** (by title, date, or activity)
+- 📁 Bookmark folders to organize conversations
+- 🗂️ **Group by workspace** with collapsible folders
+- 📅 **Timeline view** grouped by day
 - 📤 Export conversations to Markdown
 - 🌓 Light/Dark mode toggle
-- 📅 Sort by recent activity
 - 💬 Full markdown rendering with syntax highlighting
 - 📋 Copy buttons on code blocks
 - 🎨 Enhanced code block styling with language badges
 - 🌟 Empty state illustrations for better UX
 - 🔧 Tool call display with collapsible results
 - 🗑️ Delete conversations from the database
-- ▶️ Continue/resume conversations in Terminal (expandable floating button)
-- 📁 Bookmark folders: Starred + custom folders to organize conversations
-- ➕ Start new chat in any folder from the app
+- ▶️ Continue/resume conversations in Terminal
 - 💡 Tooltips on all buttons
 
 ## Installation
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.0.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.1.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -81,6 +84,25 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 
 ## Release Notes
 
+### Version 3.1.0 (2026-02-19)
+**Rename, Pin, and Sort**
+
+New Features:
+- **Conversation Rename**: Custom titles via dialog box, stored separately from Kiro CLI database
+- **Pin Conversations**: Pin important conversations to keep them at the top with blue pin icon
+- **Flexible Sorting**: 
+  - Flat view: Sort by Title (A-Z), Latest, or Oldest
+  - Grouped view: Sort by Name, Latest Conversation, or Oldest Conversation
+  - Separate preferences for each view
+- **Filter Internal Conversations**: Automatically excludes Kiro CLI's internal conversations (`.title-generation`, etc.)
+
+Technical:
+- Added `TitleManager.swift` for custom titles and pinned state
+- Custom titles stored in `~/Library/Application Support/KiroChatViewer/titles.json`
+- Pinned conversations stored in `~/Library/Application Support/KiroChatViewer/pinned.json`
+- Kiro CLI database remains read-only (except delete feature)
+- Pinned conversations always appear first regardless of sort order
+
 ### Version 3.0.0 (2026-02-18)
 **Code Block Enhancements & UX Polish**
 
@@ -89,12 +111,15 @@ New Features:
 - **Copy Buttons**: Hover over any code block to reveal a copy button with confirmation feedback
 - **Enhanced Code Blocks**: Language badges, rounded corners, better styling, horizontal scroll
 - **Empty States**: Friendly illustrations when no conversations exist or search returns no results
+- **Workspace Grouping**: Group conversations by workspace with collapsible folders
+- **Timeline View**: View conversations grouped by day
 - Dark/light mode support for all new features
 
 Technical:
 - Added Splash dependency for syntax highlighting
 - Custom MarkdownUI theme with code block customization
 - NSPasteboard integration for clipboard operations
+- Added `MarkdownTheme.swift` and `TimelineView.swift`
 
 ### Version 2.1.1 (2026-02-18)
 
