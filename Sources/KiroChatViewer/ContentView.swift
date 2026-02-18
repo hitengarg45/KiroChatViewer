@@ -77,9 +77,16 @@ struct ContentView: View {
                                 HStack {
                                     Image(systemName: "folder.fill")
                                         .foregroundStyle(.blue)
-                                    Text(group.directory)
-                                        .fontWeight(.medium)
-                                        .lineLimit(1)
+                                        .font(.title3)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(group.directory.split(separator: "/").last.map(String.init) ?? group.directory)
+                                            .fontWeight(.medium)
+                                        Text(group.directory)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
                                     Spacer()
                                     Text("\(group.conversations.count)")
                                         .font(.caption)
