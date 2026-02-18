@@ -4,6 +4,7 @@ struct ContentView: View {
     @StateObject private var db = DatabaseManager()
     @StateObject private var bookmarks = BookmarkManager()
     @StateObject private var titles = TitleManager()
+    @StateObject private var perf = PerformanceMonitor()
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
@@ -17,6 +18,7 @@ struct ContentView: View {
     @AppStorage("flatSortOrder") private var flatSortOrder: FlatSortOrder = .latest
     @State private var expandedDirectories: Set<String> = []
     @State private var showTimeline = false
+    @State private var showPerformance = false
     
     enum GroupSortOrder: String {
         case name = "Name"
@@ -208,10 +210,20 @@ struct ContentView: View {
                 }
                 .help(isGroupedByWorkspace ? "Sort workspace groups" : "Sort conversations")
                 
-                Button { showTimeline = true } label: {
-                    Label("Timeline", systemImage: "clock")
+                Menu {
+                    Button { showTimeline = true } label: {
+                        Label("Timeline", systemImage: "clock")
+                    }
+                    Button { showPerformance = true } label: {
+                        Label("Performance", systemImage: "speedometer")
+                    }
+                } label: {
+                    Label("Tools", systemImage: "wrench.and.screwdriver")
                 }
-                .help("View conversation timeline")
+                .help("View tools and metrics")
+                .popover(isPresented: $showPerformance) {
+                    PerformancePopover(monitor: perf)
+                }
                 
                 Toggle(isOn: $isDarkMode) {
                     Label(isDarkMode ? "Dark" : "Light", systemImage: isDarkMode ? "moon.fill" : "sun.max.fill")
@@ -221,7 +233,15 @@ struct ContentView: View {
                 
                 Button {
                     withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
-                    Task { db.loadConversations() }
+                    perf.start("Load")
+                    Task {
+                        db.loadConversations()
+                        try? await Task.sleep(for: .milliseconds(100))
+                        await MainActor.run {
+                            perf.end("Load")
+                            perf.record("Count", "\(db.conversations.count)")
+                        }
+                    }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -254,7 +274,14 @@ struct ContentView: View {
         }
         .environmentObject(bookmarks)
         .preferredColorScheme(isDarkMode ? .dark : .light)
-        .onAppear(perform: db.loadConversations)
+        .onAppear {
+            perf.start("Load")
+            db.loadConversations()
+        }
+        .onChange(of: db.conversations) { _ in
+            perf.end("Load")
+            perf.record("Count", "\(db.conversations.count)")
+        }
         .alert("Error", isPresented: .constant(db.error != nil)) {
             Button("OK") { db.error = nil }
         } message: {
