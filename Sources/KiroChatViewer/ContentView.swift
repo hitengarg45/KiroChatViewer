@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showFolderPicker = false
     @AppStorage("isGroupedByWorkspace") private var isGroupedByWorkspace: Bool = false
     @State private var expandedDirectories: Set<String> = []
+    @State private var showTimeline = false
     
     var filteredConversations: [Conversation] {
         var convs = db.conversations
@@ -136,6 +137,11 @@ struct ContentView: View {
                 .toggleStyle(.button)
                 .help(isGroupedByWorkspace ? "Show flat list" : "Group by workspace")
                 
+                Button { showTimeline = true } label: {
+                    Label("Timeline", systemImage: "clock")
+                }
+                .help("View conversation timeline")
+                
                 Toggle(isOn: $isDarkMode) {
                     Label(isDarkMode ? "Dark" : "Light", systemImage: isDarkMode ? "moon.fill" : "sun.max.fill")
                 }
@@ -190,6 +196,9 @@ struct ContentView: View {
                 }
                 newFolderName = ""
             }
+        }
+        .sheet(isPresented: $showTimeline) {
+            TimelineView(conversations: db.conversations)
         }
     }
     
