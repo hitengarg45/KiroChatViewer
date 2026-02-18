@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showNewFolderSheet = false
     @State private var newFolderName = ""
     @State private var showFolderPicker = false
+    @State private var showDeleteConfirm = false
     
     var filteredConversations: [Conversation] {
         var convs = db.conversations
@@ -107,6 +108,38 @@ struct ContentView: View {
         } message: {
             Text(db.error ?? "")
         }
+        .alert("Delete Conversation?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                if let conv = selectedConversation {
+                    db.deleteConversation(conv)
+                    selectedConversation = nil
+                }
+            }
+        } message: {
+            Text("This will permanently delete this conversation from the database.")
+        }
+        // Keyboard shortcuts
+        .background {
+            Group {
+                Button("") { focusSearch() }
+                    .keyboardShortcut("k", modifiers: .command)
+                Button("") {
+                    if selectedConversation != nil { showDeleteConfirm = true }
+                }
+                    .keyboardShortcut(.delete, modifiers: .command)
+                Button("") {
+                    withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
+                    Task { db.loadConversations() }
+                }
+                    .keyboardShortcut("r", modifiers: .command)
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
+        }
+        .onKeyPress(.upArrow) { navigateConversation(direction: -1); return .handled }
+        .onKeyPress(.downArrow) { navigateConversation(direction: 1); return .handled }
+        .onKeyPress(.escape) { selectedConversation = nil; return .handled }
         .sheet(isPresented: $showNewFolderSheet) {
             NewFolderSheet(name: $newFolderName) {
                 if !newFolderName.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -115,6 +148,28 @@ struct ContentView: View {
                 newFolderName = ""
             }
         }
+    }
+    
+    private func focusSearch() {
+        // Standard macOS way to focus the searchable toolbar field
+        if let window = NSApp.keyWindow {
+            window.toolbar?.items.forEach { item in
+                if item.itemIdentifier.rawValue.contains("search") {
+                    window.makeFirstResponder(item.view)
+                }
+            }
+        }
+    }
+    
+    private func navigateConversation(direction: Int) {
+        let list = filteredConversations
+        guard !list.isEmpty else { return }
+        guard let current = selectedConversation, let idx = list.firstIndex(of: current) else {
+            selectedConversation = direction > 0 ? list.first : list.last
+            return
+        }
+        let newIdx = idx + direction
+        if list.indices.contains(newIdx) { selectedConversation = list[newIdx] }
     }
     
     private var folderSection: some View {

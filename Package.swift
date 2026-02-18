@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "KiroChatViewer",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.0"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0")
