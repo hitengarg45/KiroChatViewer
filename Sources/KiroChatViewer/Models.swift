@@ -43,7 +43,43 @@ struct Conversation: Identifiable, Codable, Hashable {
     }
     
     var title: String {
-        messages.first?.content.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines) ?? "Untitled"
+        guard let first = messages.first?.content.trimmingCharacters(in: .whitespacesAndNewlines),
+              !first.isEmpty else { return "Untitled" }
+        // Use first line if short enough, otherwise first sentence/clause
+        let firstLine = first.components(separatedBy: .newlines).first ?? first
+        if firstLine.count <= 80 { return String(firstLine) }
+        // Try to break at sentence boundary
+        let sentenceEnders: [Character] = [".", "?", "!"]
+        if let idx = firstLine.prefix(80).lastIndex(where: { sentenceEnders.contains($0) }) {
+            return String(firstLine[...idx])
+        }
+        // Break at last word boundary
+        let truncated = firstLine.prefix(80)
+        if let space = truncated.lastIndex(of: " ") {
+            return String(truncated[..<space]) + "…"
+        }
+        return String(truncated) + "…"
+    }
+    
+    var summary: String {
+        // Combine first user prompt + first assistant response into a concise summary
+        let userMsg = messages.first(where: { $0.role == .user })?.content ?? ""
+        let assistantMsg = messages.first(where: { $0.role == .assistant })?.content ?? ""
+        
+        if assistantMsg.isEmpty {
+            return String(userMsg.prefix(120)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // Take first meaningful line of assistant response
+        let lines = assistantMsg.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("```") && !$0.hasPrefix("#") }
+        let firstLine = lines.first ?? ""
+        if firstLine.count <= 120 { return firstLine }
+        let truncated = firstLine.prefix(120)
+        if let space = truncated.lastIndex(of: " ") {
+            return String(truncated[..<space]) + "…"
+        }
+        return String(truncated) + "…"
     }
     
     static func == (lhs: Conversation, rhs: Conversation) -> Bool { lhs.id == rhs.id }

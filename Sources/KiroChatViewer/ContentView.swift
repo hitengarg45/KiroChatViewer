@@ -288,6 +288,10 @@ struct ConversationRow: View {
                     Text(conversation.title)
                         .lineLimit(2)
                 }
+                Text(conversation.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 HStack {
                     Text(conversation.directory.split(separator: "/").last ?? "")
                         .font(.caption)
