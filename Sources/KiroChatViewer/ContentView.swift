@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var showNewFolderSheet = false
     @State private var newFolderName = ""
     @State private var showFolderPicker = false
+    @AppStorage("isGroupedByWorkspace") private var isGroupedByWorkspace: Bool = false
+    @State private var expandedDirectories: Set<String> = []
     
     var filteredConversations: [Conversation] {
         var convs = db.conversations
@@ -30,6 +32,12 @@ struct ContentView: View {
         return convs
     }
     
+    var groupedConversations: [(directory: String, conversations: [Conversation])] {
+        let grouped = Dictionary(grouping: filteredConversations) { $0.directory }
+        return grouped.map { (directory: $0.key, conversations: $0.value.sorted { $0.updatedAt > $1.updatedAt }) }
+            .sorted { $0.directory < $1.directory }
+    }
+    
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
@@ -39,24 +47,74 @@ struct ContentView: View {
                 Divider()
                 
                 // Conversations list
-                List(filteredConversations, selection: $selectedConversation) { conv in
-                    ConversationRow(
-                        conversation: conv,
-                        bookmarks: bookmarks,
-                        onDelete: {
-                            if selectedConversation?.id == conv.id { selectedConversation = nil }
-                            db.deleteConversation(conv)
+                if isGroupedByWorkspace {
+                    List(selection: $selectedConversation) {
+                        ForEach(groupedConversations, id: \.directory) { group in
+                            DisclosureGroup(
+                                isExpanded: Binding(
+                                    get: { expandedDirectories.contains(group.directory) },
+                                    set: { isExpanded in
+                                        if isExpanded {
+                                            expandedDirectories.insert(group.directory)
+                                        } else {
+                                            expandedDirectories.remove(group.directory)
+                                        }
+                                    }
+                                )
+                            ) {
+                                ForEach(group.conversations) { conv in
+                                    ConversationRow(
+                                        conversation: conv,
+                                        bookmarks: bookmarks,
+                                        onDelete: {
+                                            if selectedConversation?.id == conv.id { selectedConversation = nil }
+                                            db.deleteConversation(conv)
+                                        }
+                                    )
+                                    .tag(conv)
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "folder.fill")
+                                        .foregroundStyle(.blue)
+                                    Text(group.directory)
+                                        .fontWeight(.medium)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text("\(group.conversations.count)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
-                    )
-                    .tag(conv)
-                }
-                .overlay {
-                    if filteredConversations.isEmpty {
-                        emptyStateView
                     }
+                    .overlay {
+                        if filteredConversations.isEmpty {
+                            emptyStateView
+                        }
+                    }
+                    .searchable(text: $searchText, prompt: "Search conversations")
+                    .padding(.top, 4)
+                } else {
+                    List(filteredConversations, selection: $selectedConversation) { conv in
+                        ConversationRow(
+                            conversation: conv,
+                            bookmarks: bookmarks,
+                            onDelete: {
+                                if selectedConversation?.id == conv.id { selectedConversation = nil }
+                                db.deleteConversation(conv)
+                            }
+                        )
+                        .tag(conv)
+                    }
+                    .overlay {
+                        if filteredConversations.isEmpty {
+                            emptyStateView
+                        }
+                    }
+                    .searchable(text: $searchText, prompt: "Search conversations")
+                    .padding(.top, 4)
                 }
-                .searchable(text: $searchText, prompt: "Search conversations")
-                .padding(.top, 4)
             }
             .navigationTitle("Kiro Chats")
             .toolbar {
@@ -64,6 +122,12 @@ struct ContentView: View {
                     Label("New Chat", systemImage: "plus.message")
                 }
                 .help("Start a new chat in a folder")
+                
+                Toggle(isOn: $isGroupedByWorkspace) {
+                    Label("Group", systemImage: isGroupedByWorkspace ? "folder.fill" : "list.bullet")
+                }
+                .toggleStyle(.button)
+                .help(isGroupedByWorkspace ? "Show flat list" : "Group by workspace")
                 
                 Toggle(isOn: $isDarkMode) {
                     Label(isDarkMode ? "Dark" : "Light", systemImage: isDarkMode ? "moon.fill" : "sun.max.fill")
