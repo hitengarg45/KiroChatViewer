@@ -50,6 +50,11 @@ struct ContentView: View {
                     )
                     .tag(conv)
                 }
+                .overlay {
+                    if filteredConversations.isEmpty {
+                        emptyStateView
+                    }
+                }
                 .searchable(text: $searchText, prompt: "Search conversations")
                 .padding(.top, 4)
             }
@@ -115,6 +120,39 @@ struct ContentView: View {
                 newFolderName = ""
             }
         }
+    }
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: db.conversations.isEmpty ? "tray" : "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            
+            Text(db.conversations.isEmpty ? "No Conversations Yet" : "No Results")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Text(db.conversations.isEmpty 
+                ? "Start a new chat to see it here"
+                : "Try a different search term")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            
+            if db.conversations.isEmpty {
+                Button {
+                    showFolderPicker = true
+                } label: {
+                    Label("Start New Chat", systemImage: "plus.message")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
     }
     
     private var folderSection: some View {
