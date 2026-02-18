@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 2.1.0
+## Current Version: 3.0.0
 
-[Download Latest Release](Releases/KiroChatViewer-v2.1.0.dmg) (2.9 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.0.0.dmg) (2.9 MB)
 
 ## Features
 
@@ -13,7 +13,10 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 - 📤 Export conversations to Markdown
 - 🌓 Light/Dark mode toggle
 - 📅 Sort by recent activity
-- 💬 Full markdown rendering (code blocks, formatting)
+- 💬 Full markdown rendering with syntax highlighting
+- 📋 Copy buttons on code blocks
+- 🎨 Enhanced code block styling with language badges
+- 🌟 Empty state illustrations for better UX
 - 🔧 Tool call display with collapsible results
 - 🗑️ Delete conversations from the database
 - ▶️ Continue/resume conversations in Terminal (expandable floating button)
@@ -25,7 +28,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v2.1.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.0.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -78,7 +81,22 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 
 ## Release Notes
 
-### Version 2.1.0 (2026-02-18)
+### Version 3.0.0 (2026-02-18)
+**Code Block Enhancements & UX Polish**
+
+New Features:
+- **Syntax Highlighting**: Swift code blocks now have full syntax highlighting using Splash library
+- **Copy Buttons**: Hover over any code block to reveal a copy button with confirmation feedback
+- **Enhanced Code Blocks**: Language badges, rounded corners, better styling, horizontal scroll
+- **Empty States**: Friendly illustrations when no conversations exist or search returns no results
+- Dark/light mode support for all new features
+
+Technical:
+- Added Splash dependency for syntax highlighting
+- Custom MarkdownUI theme with code block customization
+- NSPasteboard integration for clipboard operations
+
+### Version 2.1.1 (2026-02-18)
 
 **Bookmarks, New Chat & UI Polish**
 
