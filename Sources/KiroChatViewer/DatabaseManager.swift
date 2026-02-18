@@ -14,19 +14,21 @@ class DatabaseManager: ObservableObject {
         error = nil
         
         Task {
-            do {
-                let convs = try await fetchConversations()
-                await MainActor.run {
-                    self.conversations = convs.sorted { $0.updatedAt > $1.updatedAt }
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.error = error.localizedDescription
-                    self.isLoading = false
-                }
-            }
+            await _loadConversations()
         }
+    }
+    
+    @MainActor
+    func _loadConversations() async {
+        isLoading = true
+        error = nil
+        do {
+            let convs = try await fetchConversations()
+            self.conversations = convs.sorted { $0.updatedAt > $1.updatedAt }
+        } catch {
+            self.error = error.localizedDescription
+        }
+        self.isLoading = false
     }
     
     private func fetchConversations() async throws -> [Conversation] {

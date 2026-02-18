@@ -74,12 +74,9 @@ struct ConversationDetailView: View {
                 withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
                 isReloading = true
                 Task {
-                    db.loadConversations()
-                    try? await Task.sleep(nanoseconds: 300_000_000)
-                    await MainActor.run {
-                        selectedConversation = db.conversations.first { $0.id == conversation.id }
-                        isReloading = false
-                    }
+                    await db._loadConversations()
+                    selectedConversation = db.conversations.first { $0.id == conversation.id }
+                    isReloading = false
                 }
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
