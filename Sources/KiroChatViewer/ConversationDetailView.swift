@@ -8,6 +8,7 @@ struct ConversationDetailView: View {
     @State private var rotationAngle: Double = 0
     @State private var isReloading = false
     @EnvironmentObject var db: DatabaseManager
+    @StateObject private var mdCache = MarkdownCache()
     @Binding var selectedConversation: Conversation?
     
     var body: some View {
@@ -32,7 +33,7 @@ struct ConversationDetailView: View {
                         Color.clear.frame(height: 1).id("top")
                         
                         ForEach(conversation.messages) { message in
-                            MessageView(message: message)
+                            MessageView(message: message, mdCache: mdCache)
                         }
                         
                         Color.clear.frame(height: 1).id("bottom")
@@ -168,6 +169,7 @@ struct ConversationDetailView: View {
 
 struct MessageView: View {
     let message: Message
+    @ObservedObject var mdCache: MarkdownCache
     
     var body: some View {
         switch message.role {
@@ -186,7 +188,7 @@ struct MessageView: View {
                 Image(systemName: "person.circle.fill").foregroundStyle(.blue)
                 Text("You").font(.headline)
             }
-            Markdown(message.content)
+            Markdown(mdCache.get("user-\(message.id)", content: message.content))
                 .markdownTheme(.kiro)
                 .textSelection(.enabled)
                 .padding()
@@ -202,7 +204,7 @@ struct MessageView: View {
                 Image(systemName: "sparkles").foregroundStyle(.purple)
                 Text("Kiro").font(.headline)
             }
-            Markdown(message.content)
+            Markdown(mdCache.get("asst-\(message.id)", content: message.content))
                 .markdownTheme(.kiro)
                 .textSelection(.enabled)
                 .padding()
@@ -221,7 +223,7 @@ struct MessageView: View {
                     Text("Kiro").font(.headline)
                 }
                 .padding(.horizontal)
-                Markdown(message.content)
+                Markdown(mdCache.get("tool-\(message.id)", content: message.content))
                     .markdownTheme(.kiro)
                     .textSelection(.enabled)
                     .padding()
