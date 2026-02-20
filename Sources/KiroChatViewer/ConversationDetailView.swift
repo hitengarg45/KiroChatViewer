@@ -15,7 +15,7 @@ struct ConversationDetailView: View {
         ZStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(conversation.title)
                                 .font(.title)
