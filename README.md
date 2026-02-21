@@ -35,7 +35,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.1.1.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.1.2.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
