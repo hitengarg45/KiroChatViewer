@@ -88,6 +88,19 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 
 ## Release Notes
 
+### Version 3.1.2 (2026-02-22)
+
+**Performance Update**
+
+Features:
+- ✅ Message virtualization with LazyVStack - only renders visible messages
+- ✅ 70% memory reduction for large conversations (500+ messages)
+- ✅ Smoother scrolling in long conversations
+
+Technical:
+- Replaced VStack with LazyVStack for on-demand rendering
+- Messages load only when scrolled into view
+
 ### Version 3.1.1 (2026-02-20)
 
 **Performance Optimizations**
@@ -203,19 +216,6 @@ Technical:
 - Fixed refresh animations to work consistently
 - Optimized DMG layout and window sizing
 - Auto-resize background to fit DMG window perfectly
-
-### Version 3.1.2 (2026-02-22)
-
-**Performance Update**
-
-Features:
-- ✅ Message virtualization with LazyVStack - only renders visible messages
-- ✅ 70% memory reduction for large conversations (500+ messages)
-- ✅ Smoother scrolling in long conversations
-
-Technical:
-- Replaced VStack with LazyVStack for on-demand rendering
-- Messages load only when scrolled into view
 
 ### Version 1.0.0 (2026-02-14)
 
