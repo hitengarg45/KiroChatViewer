@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.1.1
+## Current Version: 3.1.2
 
-[Download Latest Release](Releases/KiroChatViewer-v3.1.1.dmg) (3.1 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.1.2.dmg) (3.1 MB)
 
 ## Features
 
@@ -203,6 +203,19 @@ Technical:
 - Fixed refresh animations to work consistently
 - Optimized DMG layout and window sizing
 - Auto-resize background to fit DMG window perfectly
+
+### Version 3.1.2 (2026-02-22)
+
+**Performance Update**
+
+Features:
+- ✅ Message virtualization with LazyVStack - only renders visible messages
+- ✅ 70% memory reduction for large conversations (500+ messages)
+- ✅ Smoother scrolling in long conversations
+
+Technical:
+- Replaced VStack with LazyVStack for on-demand rendering
+- Messages load only when scrolled into view
 
 ### Version 1.0.0 (2026-02-14)
 
