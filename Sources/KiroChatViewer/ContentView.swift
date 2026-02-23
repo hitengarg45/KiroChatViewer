@@ -275,12 +275,14 @@ struct ContentView: View {
         .environmentObject(bookmarks)
         .preferredColorScheme(isDarkMode ? .dark : .light)
         .onAppear {
+            AppLogger.ui.info("App launched")
             perf.start("Load")
             db.loadConversations()
         }
         .onChange(of: db.conversations) { _ in
             perf.end("Load")
             perf.record("Count", "\(db.conversations.count)")
+            AppLogger.ui.info("Conversations updated: \(db.conversations.count) total")
         }
         .alert("Error", isPresented: .constant(db.error != nil)) {
             Button("OK") { db.error = nil }

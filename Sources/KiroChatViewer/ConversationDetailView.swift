@@ -4,7 +4,9 @@ import MarkdownUI
 
 struct ConversationDetailView: View {
     let conversation: Conversation
-    @State private var exportURL: URL?
+    @State private var showExporter = false
+    @State private var exportSuccess = false
+    @State private var exportError: String?
     @State private var rotationAngle: Double = 0
     @State private var isReloading = false
     @EnvironmentObject var db: DatabaseManager
@@ -87,15 +89,39 @@ struct ConversationDetailView: View {
             
             Spacer()
             
-            Button("Export") { exportToMarkdown() }
+            Button("Export") { 
+                AppLogger.ui.info("Export button clicked")
+                showExporter = true 
+            }
                 .help("Export as Markdown")
         }
         .fileExporter(
-            isPresented: .constant(exportURL != nil),
+            isPresented: $showExporter,
             document: TextDocument(text: generateMarkdown()),
             contentType: .plainText,
-            defaultFilename: "conversation.md"
-        ) { _ in exportURL = nil }
+            defaultFilename: "conversation-\(conversation.id.prefix(8))-\(Date().timeIntervalSince1970).md"
+        ) { result in
+            switch result {
+            case .success(let url):
+                AppLogger.ui.info("Export successful: \(url.path)")
+                exportSuccess = true
+            case .failure(let error):
+                AppLogger.ui.error("Export failed: \(error.localizedDescription)")
+                exportError = error.localizedDescription
+            }
+        }
+        .alert("Export Successful", isPresented: $exportSuccess) {
+            Button("OK") { }
+        } message: {
+            Text("Conversation exported successfully")
+        }
+        .alert("Export Failed", isPresented: .constant(exportError != nil)) {
+            Button("OK") { exportError = nil }
+        } message: {
+            if let error = exportError {
+                Text(error)
+            }
+        }
     }
     
     private func continueInTerminal() {
@@ -136,6 +162,7 @@ struct ConversationDetailView: View {
     }
     
     private func generateMarkdown() -> String {
+        AppLogger.ui.info("Generating markdown for conversation: \(conversation.id)")
         var md = "# \(conversation.title)\n\n"
         md += "**Directory:** \(conversation.directory)\n\n"
         md += "**Updated:** \(conversation.updatedAt.formatted())\n\n---\n\n"
@@ -154,14 +181,8 @@ struct ConversationDetailView: View {
                 md += "## Kiro\n\n\(message.content)\n\n"
             }
         }
+        AppLogger.ui.info("Markdown generated: \(md.count) characters, \(conversation.messages.count) messages")
         return md
-    }
-    
-    private func exportToMarkdown() {
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("conversation-\(conversation.id).md")
-        try? generateMarkdown().write(to: tempURL, atomically: true, encoding: .utf8)
-        exportURL = tempURL
     }
 }
 

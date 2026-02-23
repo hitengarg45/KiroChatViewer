@@ -22,13 +22,17 @@ class DatabaseManager: ObservableObject {
     func _loadConversations() async {
         isLoading = true
         error = nil
+        AppLogger.db.info("Loading conversations from: \(self.dbPath.path)")
         do {
             // First batch: load 50 immediately
+            let start = Date()
             let firstBatch = try await fetchConversations(limit: 50, offset: 0)
+            AppLogger.perf.info("First batch loaded: \(firstBatch.count) conversations in \(Date().timeIntervalSince(start) * 1000, privacy: .public)ms")
             self.conversations = firstBatch.sorted { $0.updatedAt > $1.updatedAt }
             
             // Continue loading rest in background
             let remaining = try await fetchConversations(limit: nil, offset: 50)
+            AppLogger.db.info("Background load complete: \(remaining.count) additional conversations")
             let allConvs = firstBatch + remaining
             
             // Remove duplicates by ID
@@ -39,8 +43,10 @@ class DatabaseManager: ObservableObject {
                 return true
             }
             
+            AppLogger.db.info("Total unique conversations: \(unique.count)")
             self.conversations = unique.sorted { $0.updatedAt > $1.updatedAt }
         } catch {
+            AppLogger.db.error("Failed to load conversations: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
         self.isLoading = false
@@ -85,7 +91,7 @@ class DatabaseManager: ObservableObject {
                 )
                 result.append(conv)
             } catch {
-                print("Failed to decode conversation \(row[conversationId]): \(error)")
+                AppLogger.db.error("Failed to decode conversation \(row[conversationId]): \(error.localizedDescription)")
             }
         }
         
