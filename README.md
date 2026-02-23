@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.1.2
+## Current Version: 3.2.0
 
-[Download Latest Release](Releases/KiroChatViewer-v3.1.2.dmg) (3.1 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.2.0.dmg) (3.1 MB)
 
 ## Features
 
@@ -28,6 +28,8 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 - 🌟 Empty state illustrations for better UX
 - 🔧 Tool call display with collapsible results
 - 🗑️ Delete conversations from the database
+- 📊 **Runtime logging** for debugging and monitoring
+- 🐛 **Log viewer scripts** for easy troubleshooting
 - ▶️ Continue/resume conversations in Terminal
 - 💡 Tooltips on all buttons
 
@@ -67,7 +69,21 @@ The app automatically reads from your Kiro CLI database at:
 
 - Click any conversation to view its full history
 - Use the search bar to filter conversations
-- Click "Export to Markdown" to save a conversation
+- Click "Export" to save a conversation as Markdown
+
+## Debugging
+
+View runtime logs to troubleshoot issues:
+
+```bash
+# Stream live logs in terminal
+./view_logs.sh
+
+# View recent logs (last 10 minutes)
+./show_recent_logs.sh
+```
+
+Or use Console.app and filter by: `subsystem:com.kiro.chatviewer`
 
 ## Requirements
 
@@ -87,6 +103,31 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 3.2.0 (2026-02-23)
+
+**Debugging & UX Improvements**
+
+New Features:
+- ✅ Runtime logging system with AppLogger (database, ui, performance categories)
+- ✅ Log viewer scripts: `view_logs.sh` (live stream) and `show_recent_logs.sh` (recent)
+- ✅ Console.app integration with subsystem filtering
+- ✅ Fixed export dialog reopening after cancel
+- ✅ Unique export filenames with timestamps
+- ✅ Success/error alerts for export operations
+- ✅ Smooth scroll to bottom behavior
+
+Improvements:
+- ✅ Export dialog now works consistently (fixed binding issue)
+- ✅ Conversations open at bottom with polished animation
+- ✅ LazyVStack timing fixed for proper rendering
+- ✅ Comprehensive logging for debugging
+
+Technical:
+- Added Logger.swift with os.log integration
+- Proper @State binding for file exporter
+- Instant scroll + 50ms delay + smooth adjustment
+- Export filename format: conversation-<id>-<timestamp>.md
 
 ### Version 3.1.2 (2026-02-22)
 
