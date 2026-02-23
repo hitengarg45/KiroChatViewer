@@ -44,7 +44,22 @@ struct ConversationDetailView: View {
                 }
                 .opacity(isReloading ? 0.3 : 1.0)
                 .onAppear {
+                    AppLogger.ui.info("Conversation detail appeared, scrolling to bottom")
                     proxy.scrollTo("bottom", anchor: .bottom)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: conversation.id) { _ in
+                    AppLogger.ui.info("Conversation changed, scrolling to bottom")
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
                 }
                 .overlay(alignment: .bottomTrailing) {
                     ContinueInTerminalButton { continueInTerminal() }
