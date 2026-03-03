@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.2.0
+## Current Version: 3.3.0
 
-[Download Latest Release](Releases/KiroChatViewer-v3.2.0.dmg) (3.1 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.3.0.dmg) (3.1 MB)
 
 ## Features
 
@@ -20,6 +20,10 @@ A native macOS application to view and search your Kiro CLI chat conversations.
   - Incremental loading (first 50 conversations load instantly)
   - Markdown rendering cache for smooth scrolling
   - Performance monitor to track metrics
+- 💾 **Auto-backup system** — backs up Kiro CLI database on every launch
+  - Transparent merge: missing conversations from backup shown automatically
+  - Manual "Backup Now" under Tools menu
+  - Keeps last 3 backups in `~/Library/Application Support/KiroChatViewer/backups/`
 - 📤 Export conversations to Markdown
 - 🌓 Light/Dark mode toggle
 - 💬 Full markdown rendering with syntax highlighting
@@ -37,7 +41,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.1.2.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.3.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -103,6 +107,26 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 3.3.0 (2026-03-03)
+
+**Backup & Recovery System**
+
+New Features:
+- ✅ Auto-backup on every app launch and reload (1-hour cooldown)
+- ✅ Transparent backup merge — missing conversations from backup shown automatically
+- ✅ Manual "Backup Now" under Tools menu with confirmation dialog
+- ✅ Toast notification for auto-backup, alert for manual backup
+- ✅ Keeps last 3 backups, oldest pruned automatically
+- ✅ kiro-cli DB always wins on duplicate conversations
+
+Bug Fixes:
+- ✅ Fixed conversation detail view scrolling to top on reload
+
+Technical:
+- Added `BackupManager.swift` with auto/manual backup, toast/alert feedback
+- `DatabaseManager` reads from both kiro-cli DB and latest backup (in-memory merge)
+- Backup location: `~/Library/Application Support/KiroChatViewer/backups/`
 
 ### Version 3.2.0 (2026-02-23)
 
