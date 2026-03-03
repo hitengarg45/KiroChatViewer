@@ -24,16 +24,23 @@ class DatabaseManager: ObservableObject {
         error = nil
         AppLogger.db.info("Loading conversations from: \(self.dbPath.path)")
         do {
-            // First batch: load 50 immediately
             let start = Date()
-            let firstBatch = try await fetchConversations(limit: 50, offset: 0)
+            let firstBatch = try await fetchConversations(from: dbPath, limit: 50, offset: 0)
             AppLogger.perf.info("First batch loaded: \(firstBatch.count) conversations in \(Date().timeIntervalSince(start) * 1000, privacy: .public)ms")
             self.conversations = firstBatch.sorted { $0.updatedAt > $1.updatedAt }
             
-            // Continue loading rest in background
-            let remaining = try await fetchConversations(limit: nil, offset: 50)
+            let remaining = try await fetchConversations(from: dbPath, limit: nil, offset: 50)
             AppLogger.db.info("Background load complete: \(remaining.count) additional conversations")
-            let allConvs = firstBatch + remaining
+            var allConvs = firstBatch + remaining
+            
+            // Merge from latest backup — kiro-cli wins on duplicates
+            if let backupURL = BackupManager.shared.latestBackupURL, backupURL.path != dbPath.path {
+                let backupConvs = (try? await fetchConversations(from: backupURL)) ?? []
+                let existingIds = Set(allConvs.map { $0.id })
+                let onlyInBackup = backupConvs.filter { !existingIds.contains($0.id) }
+                AppLogger.db.info("Backup contributed \(onlyInBackup.count) additional conversations")
+                allConvs += onlyInBackup
+            }
             
             // Remove duplicates by ID
             var seen = Set<String>()
@@ -52,8 +59,8 @@ class DatabaseManager: ObservableObject {
         self.isLoading = false
     }
     
-    private func fetchConversations(limit: Int? = nil, offset: Int = 0) async throws -> [Conversation] {
-        let db = try Connection(dbPath.path)
+    private func fetchConversations(from url: URL, limit: Int? = nil, offset: Int = 0) async throws -> [Conversation] {
+        let db = try Connection(url.path)
         let table = Table("conversations_v2")
         let key = Expression<String>("key")
         let conversationId = Expression<String>("conversation_id")

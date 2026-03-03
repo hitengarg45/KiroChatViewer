@@ -19,6 +19,8 @@ struct ContentView: View {
     @State private var expandedDirectories: Set<String> = []
     @State private var showTimeline = false
     @State private var showPerformance = false
+    @State private var showBackupConfirm = false
+    @StateObject private var backupManager = BackupManager.shared
     
     enum GroupSortOrder: String {
         case name = "Name"
@@ -217,6 +219,10 @@ struct ContentView: View {
                     Button { showPerformance = true } label: {
                         Label("Performance", systemImage: "speedometer")
                     }
+                    Divider()
+                    Button { showBackupConfirm = true } label: {
+                        Label("Backup Now", systemImage: "externaldrive.badge.plus")
+                    }
                 } label: {
                     Label("Tools", systemImage: "wrench.and.screwdriver")
                 }
@@ -266,7 +272,7 @@ struct ContentView: View {
             if let conv = selectedConversation {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
-                    .id("\(conv.id)-\(conv.messages.count)")
+                    .id(conv.id)
             } else {
                 Text("Select a conversation")
                     .foregroundStyle(.secondary)
@@ -274,6 +280,29 @@ struct ContentView: View {
         }
         .environmentObject(bookmarks)
         .preferredColorScheme(isDarkMode ? .dark : .light)
+        .overlay(alignment: .bottomTrailing) {
+            if let toast = backupManager.toastMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "externaldrive.fill.badge.checkmark")
+                        .font(.body)
+                    Text(toast)
+                        .font(.body)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .cornerRadius(8)
+                .shadow(radius: 4)
+                .padding()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation { backupManager.toastMessage = nil }
+                    }
+                }
+            }
+        }
+        .animation(.easeInOut, value: backupManager.toastMessage)
         .onAppear {
             AppLogger.ui.info("App launched")
             perf.start("Load")
@@ -283,6 +312,13 @@ struct ContentView: View {
             perf.end("Load")
             perf.record("Count", "\(db.conversations.count)")
             AppLogger.ui.info("Conversations updated: \(db.conversations.count) total")
+            
+            // Auto-backup after load
+            if !db.conversations.isEmpty {
+                DispatchQueue.global(qos: .utility).async {
+                    BackupManager.shared.backupIfNeeded()
+                }
+            }
         }
         .alert("Error", isPresented: .constant(db.error != nil)) {
             Button("OK") { db.error = nil }
@@ -299,6 +335,22 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showTimeline) {
             TimelineView(conversations: db.conversations)
+        }
+        .alert("Backup Database?", isPresented: $showBackupConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Backup") {
+                DispatchQueue.global(qos: .utility).async {
+                    backupManager.performBackup()
+                }
+            }
+        } message: {
+            Text("Saves a snapshot of your current Kiro CLI database. Up to 3 backups are kept, oldest are removed automatically.")
+        }
+        .alert(backupManager.lastBackupStatus ?? "", isPresented: Binding(
+            get: { backupManager.lastBackupStatus != nil },
+            set: { if !$0 { backupManager.lastBackupStatus = nil } }
+        )) {
+            Button("OK") { backupManager.lastBackupStatus = nil }
         }
     }
     
