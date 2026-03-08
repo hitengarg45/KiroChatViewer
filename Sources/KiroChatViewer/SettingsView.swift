@@ -92,7 +92,7 @@ struct AboutSettings: View {
                 Text("KiroChatViewer")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Version 3.3.0")
+                Text("Version 3.4.0")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

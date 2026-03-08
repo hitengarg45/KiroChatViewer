@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.3.0
+## Current Version: 3.4.0
 
-[Download Latest Release](Releases/KiroChatViewer-v3.3.0.dmg) (3.1 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.4.0.dmg) (3.1 MB)
 
 ## Features
 
@@ -24,6 +24,11 @@ A native macOS application to view and search your Kiro CLI chat conversations.
   - Transparent merge: missing conversations from backup shown automatically
   - Manual "Backup Now" under Tools menu
   - Keeps last 3 backups in `~/Library/Application Support/KiroChatViewer/backups/`
+- ⚙️ **Settings window** (⌘,) with About, Appearance, Conversations, Backup, Database tabs
+- 🎨 **Theme system** — System, Light, Dark, and Kiro (deep purple) modes + custom themes
+- 🔤 **Font settings** — font family, size, and line spacing with live preview
+- 💬 **Chat-style layout** — user messages right-aligned, Kiro responses left-aligned
+- 🔧 **Full tool call details** — arguments and results always visible with scroll
 - 📤 Export conversations to Markdown
 - 🌓 Light/Dark mode toggle
 - 💬 Full markdown rendering with syntax highlighting
@@ -41,7 +46,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.3.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.4.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -107,6 +112,29 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 3.4.0 (2026-03-08)
+
+**Settings, Theming & UI Overhaul**
+
+New Features:
+- ✅ Settings window (⌘,) with About, Appearance, Conversations, Backup, Database tabs
+- ✅ Theme system: System, Light, Dark, Kiro modes + custom themes with live preview
+- ✅ Font settings: family picker, size/spacing sliders with preview
+- ✅ Chat-style layout: user messages right, Kiro left
+- ✅ Full tool call details: always-visible args/results with scroll and text wrapping
+- ✅ Conversation list: terminal icon, message count, hover highlight, visible separators
+- ✅ Grouped view: chat count, latest time, right-side chevron, indented conversations
+
+Bug Fixes:
+- ✅ Fixed conversation detail not updating on reload
+- ✅ Fixed System theme not applying correctly
+- ✅ Fixed three-dot menu visibility in dark themes
+- ✅ Filtered Application Support conversations
+
+Technical:
+- Added `ThemeManager.swift` and `SettingsView.swift`
+- View identity uses `updatedAt` for proper refresh without scroll reset
 
 ### Version 3.3.0 (2026-03-03)
 
