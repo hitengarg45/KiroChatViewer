@@ -594,30 +594,44 @@ struct ConversationRow: View {
     }
     
     var body: some View {
-        HStack(spacing: 8) {
-            if titles.generatingId == conversation.id {
-                ProgressView()
-                    .scaleEffect(0.5)
-                    .frame(width: 14, height: 14)
-            } else {
-                Image(systemName: "terminal.fill")
-                    .font(.caption)
-                    .foregroundStyle(.purple.opacity(0.6))
+        HStack(spacing: 0) {
+            // Pin accent bar
+            if titles.isPinned(conversation.id) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.blue)
+                    .frame(width: 3)
+                    .padding(.vertical, 2)
+                    .padding(.trailing, 6)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    if titles.isPinned(conversation.id) {
-                        Image(systemName: "pin.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
+            
+            HStack(spacing: 8) {
+                if titles.generatingId == conversation.id {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 14, height: 14)
+                } else {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "terminal.fill")
+                            .font(.caption)
+                            .foregroundStyle(.purple.opacity(0.6))
+                        if titles.isPinned(conversation.id) {
+                            Image(systemName: "pin.circle.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.white, .blue)
+                                .offset(x: 4, y: -4)
+                        }
                     }
-                    if bookmarks.isBookmarked(conversationId: conversation.id) {
-                        Image(systemName: "bookmark.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                    Text(displayTitle)
-                        .lineLimit(2)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        if bookmarks.isBookmarked(conversationId: conversation.id) {
+                            Image(systemName: "bookmark.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                        Text(displayTitle)
+                            .lineLimit(2)
+                            .fontWeight(titles.isPinned(conversation.id) ? .semibold : .regular)
                 }
                 HStack {
                     Text("\(conversation.messages.count) msg\(conversation.messages.count == 1 ? "" : "s")")
@@ -693,14 +707,16 @@ struct ConversationRow: View {
                 .menuIndicator(.hidden)
                 .frame(width: 24)
             }
-        }
+            } // HStack(spacing: 8)
+        } // HStack(spacing: 0)
         .padding(.vertical, 8)
         .padding(.horizontal, 6)
         .padding(.leading, indented ? 16 : 0)
         .contentShape(Rectangle())
         .listRowBackground(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isHovering && !isSelected ? Color.secondary.opacity(0.1) : Color.clear)
+                .fill(isHovering && !isSelected ? Color.secondary.opacity(0.1) :
+                      titles.isPinned(conversation.id) && !isSelected ? Color.blue.opacity(0.05) : Color.clear)
                 .padding(.vertical, 2)
                 .padding(.horizontal, 4)
         )
