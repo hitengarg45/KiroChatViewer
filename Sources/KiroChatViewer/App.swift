@@ -10,5 +10,9 @@ struct KiroChatViewerApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
+        
+        Settings {
+            SettingsView()
+        }
     }
 }

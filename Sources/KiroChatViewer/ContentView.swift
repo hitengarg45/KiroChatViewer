@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var rotationAngle: Double = 0
     @State private var selectedFolder: BookmarkFolder?
     @State private var showNewFolderSheet = false
@@ -120,6 +121,7 @@ struct ContentView: View {
                                 ForEach(group.conversations) { conv in
                                     ConversationRow(
                                         conversation: conv,
+                                        isSelected: selectedConversation?.id == conv.id,
                                         bookmarks: bookmarks,
                                         titles: titles,
                                         onDelete: {
@@ -162,6 +164,7 @@ struct ContentView: View {
                     List(filteredConversations, selection: $selectedConversation) { conv in
                         ConversationRow(
                             conversation: conv,
+                            isSelected: selectedConversation?.id == conv.id,
                             bookmarks: bookmarks,
                             titles: titles,
                             onDelete: {
@@ -181,6 +184,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Kiro Chats")
+            .background(themeManager.isKiro ? themeManager.activeTheme.sidebar : Color.clear)
             .toolbar {
                 Button { showFolderPicker = true } label: {
                     Label("New Chat", systemImage: "plus.message")
@@ -231,11 +235,19 @@ struct ContentView: View {
                     PerformancePopover(monitor: perf)
                 }
                 
-                Toggle(isOn: $isDarkMode) {
-                    Label(isDarkMode ? "Dark" : "Light", systemImage: isDarkMode ? "moon.fill" : "sun.max.fill")
+                Menu {
+                    ForEach(ThemeMode.allCases) { mode in
+                        Button {
+                            themeManager.mode = mode
+                            isDarkMode = (mode == .dark || mode == .kiro)
+                        } label: {
+                            Label(mode.rawValue, systemImage: mode.icon)
+                        }
+                    }
+                } label: {
+                    Label(themeManager.mode.rawValue, systemImage: themeManager.mode.icon)
                 }
-                .toggleStyle(.button)
-                .help(isDarkMode ? "Switch to Light mode" : "Switch to Dark mode")
+                .help("Change theme mode")
                 
                 Button {
                     withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
@@ -273,13 +285,16 @@ struct ContentView: View {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
                     .id(conv.id)
+                    .background(themeManager.isKiro ? themeManager.activeTheme.background : Color.clear)
             } else {
                 Text("Select a conversation")
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(themeManager.isKiro ? themeManager.activeTheme.background : Color.clear)
             }
         }
         .environmentObject(bookmarks)
-        .preferredColorScheme(isDarkMode ? .dark : .light)
+        .preferredColorScheme(themeManager.colorScheme)
         .overlay(alignment: .bottomTrailing) {
             if let toast = backupManager.toastMessage {
                 HStack(spacing: 8) {
@@ -480,7 +495,7 @@ struct FolderRow: View {
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -541,6 +556,7 @@ struct NewFolderSheet: View {
 
 struct ConversationRow: View {
     let conversation: Conversation
+    let isSelected: Bool
     @ObservedObject var bookmarks: BookmarkManager
     @ObservedObject var titles: TitleManager
     let onDelete: () -> Void
@@ -631,14 +647,17 @@ struct ConversationRow: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.gray)
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.button)
+                .buttonStyle(.plain)
                 .menuIndicator(.hidden)
                 .frame(width: 24)
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .listRowBackground(isHovering && !isSelected ? Color.secondary.opacity(0.1) : Color.clear)
         .onHover { isHovering = $0 }
         .alert("Delete Conversation?", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) {}

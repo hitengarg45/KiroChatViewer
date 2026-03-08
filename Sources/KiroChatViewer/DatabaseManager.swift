@@ -68,7 +68,7 @@ class DatabaseManager: ObservableObject {
         let createdAt = Expression<Int64>("created_at")
         let updatedAt = Expression<Int64>("updated_at")
         
-        let kiroCliPath = NSHomeDirectory() + "/Library/Application Support/kiro-cli"
+        let appSupportPath = NSHomeDirectory() + "/Library/Application Support"
         
         var result: [Conversation] = []
         
@@ -80,8 +80,8 @@ class DatabaseManager: ObservableObject {
         for row in try db.prepare(query) {
             let directory = row[key]
             
-            // Skip conversations in kiro-cli's own directories
-            if directory.hasPrefix(kiroCliPath) {
+            // Skip conversations in Application Support directories
+            if directory.hasPrefix(appSupportPath) {
                 continue
             }
             

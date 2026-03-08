@@ -11,6 +11,7 @@ struct ConversationDetailView: View {
     @State private var isReloading = false
     @EnvironmentObject var db: DatabaseManager
     @StateObject private var mdCache = MarkdownCache()
+    @StateObject private var theme = ThemeManager.shared
     @Binding var selectedConversation: Conversation?
     
     var body: some View {
@@ -206,6 +207,7 @@ struct ConversationDetailView: View {
 struct MessageView: View {
     let message: Message
     @ObservedObject var mdCache: MarkdownCache
+    @StateObject private var theme = ThemeManager.shared
     
     var body: some View {
         switch message.role {
@@ -228,7 +230,7 @@ struct MessageView: View {
                 .markdownTheme(.kiro)
                 .textSelection(.enabled)
                 .padding()
-                .background(Color.blue.opacity(0.1))
+                .background(theme.isKiro ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
                 .cornerRadius(8)
         }
         .padding(.horizontal)
@@ -244,7 +246,7 @@ struct MessageView: View {
                 .markdownTheme(.kiro)
                 .textSelection(.enabled)
                 .padding()
-                .background(Color.purple.opacity(0.1))
+                .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
                 .cornerRadius(8)
         }
         .padding(.horizontal)
@@ -264,7 +266,7 @@ struct MessageView: View {
                     .textSelection(.enabled)
                     .padding()
                     .padding(.horizontal)
-                    .background(Color.purple.opacity(0.05))
+                    .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.05))
                     .cornerRadius(8)
                     .padding(.horizontal)
             }
