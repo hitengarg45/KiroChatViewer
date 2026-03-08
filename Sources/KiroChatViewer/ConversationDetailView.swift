@@ -18,7 +18,7 @@ struct ConversationDetailView: View {
         ZStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 28) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(conversation.title)
                                 .font(.title)
@@ -221,61 +221,68 @@ struct MessageView: View {
     }
     
     private var userView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "person.circle.fill").foregroundStyle(.blue)
-                Text("You").font(.headline)
+        HStack {
+            Spacer(minLength: 60)
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack {
+                    Text("You").font(.headline)
+                    Image(systemName: "person.circle.fill").foregroundStyle(.blue)
+                }
+                Markdown(mdCache.get("user-\(message.id)", content: message.content))
+                    .markdownTheme(.kiro)
+                    .textSelection(.enabled)
+                    .padding()
+                    .background(theme.isKiro ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
+                    .cornerRadius(8)
             }
-            Markdown(mdCache.get("user-\(message.id)", content: message.content))
-                .markdownTheme(.kiro)
-                .textSelection(.enabled)
-                .padding()
-                .background(theme.isKiro ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
-                .cornerRadius(8)
         }
         .padding(.horizontal)
     }
     
     private var assistantView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "sparkles").foregroundStyle(.purple)
-                Text("Kiro").font(.headline)
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "sparkles").foregroundStyle(.purple)
+                    Text("Kiro").font(.headline)
+                }
+                Markdown(mdCache.get("asst-\(message.id)", content: message.content))
+                    .markdownTheme(.kiro)
+                    .textSelection(.enabled)
+                    .padding()
+                    .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
+                    .cornerRadius(8)
             }
-            Markdown(mdCache.get("asst-\(message.id)", content: message.content))
-                .markdownTheme(.kiro)
-                .textSelection(.enabled)
-                .padding()
-                .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
-                .cornerRadius(8)
+            Spacer()
         }
         .padding(.horizontal)
     }
     
     private var toolView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Show assistant's explanatory text if present
-            if !message.content.isEmpty {
-                HStack {
-                    Image(systemName: "sparkles").foregroundStyle(.purple)
-                    Text("Kiro").font(.headline)
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                // Show assistant's explanatory text if present
+                if !message.content.isEmpty {
+                    HStack {
+                        Image(systemName: "sparkles").foregroundStyle(.purple)
+                        Text("Kiro").font(.headline)
+                    }
+                    Markdown(mdCache.get("tool-\(message.id)", content: message.content))
+                        .markdownTheme(.kiro)
+                        .textSelection(.enabled)
+                        .padding()
+                        .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.05))
+                        .cornerRadius(8)
                 }
-                .padding(.horizontal)
-                Markdown(mdCache.get("tool-\(message.id)", content: message.content))
-                    .markdownTheme(.kiro)
-                    .textSelection(.enabled)
-                    .padding()
-                    .padding(.horizontal)
-                    .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.05))
-                    .cornerRadius(8)
-                    .padding(.horizontal)
+                
+                // Tool calls
+                ForEach(message.toolCalls) { call in
+                    ToolCallView(call: call)
+                }
             }
-            
-            // Tool calls
-            ForEach(message.toolCalls) { call in
-                ToolCallView(call: call)
-            }
+            Spacer()
         }
+        .padding(.horizontal)
     }
 }
 
@@ -283,10 +290,10 @@ struct MessageView: View {
 
 struct ToolCallView: View {
     let call: ToolCall
-    @State private var isExpanded = false
+    @State private var resultExpanded = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             // Tool header
             HStack(spacing: 6) {
                 Image(systemName: "wrench.and.screwdriver.fill")
@@ -295,14 +302,6 @@ struct ToolCallView: View {
                 Text(call.name)
                     .font(.system(.subheadline, design: .monospaced, weight: .semibold))
                     .foregroundStyle(.orange)
-                
-                if !call.argsDescription.isEmpty {
-                    Text("(\(call.argsDescription))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
                 
                 Spacer()
                 
@@ -317,35 +316,58 @@ struct ToolCallView: View {
                 }
             }
             
-            // Collapsible result
-            if let result = call.result, !result.content.isEmpty {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.caption2)
-                        Text("Result")
-                            .font(.caption)
-                        Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
+            // Arguments — always visible
+            if !call.args.isEmpty {
+                Text("Arguments")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
                 
-                if isExpanded {
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        Text(result.content.prefix(5000))
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .padding(8)
-                    }
-                    .frame(maxHeight: 300)
-                    .background(Color(.textBackgroundColor).opacity(0.5))
-                    .cornerRadius(6)
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(call.fullArgsDescription)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxHeight: 150)
+                .background(Color(.textBackgroundColor).opacity(0.5))
+                .cornerRadius(6)
+            }
+            
+            // Result — preview always visible, expand for full
+            if let result = call.result, !result.content.isEmpty {
+                HStack {
+                    Text("Result")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle() }
+                    } label: {
+                        Text(resultExpanded ? "Show Less" : "Show More")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(result.content)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: resultExpanded ? 600 : 120)
+                .background(Color(.textBackgroundColor).opacity(0.5))
+                .cornerRadius(6)
             }
         }
         .padding(10)
@@ -355,7 +377,6 @@ struct ToolCallView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.orange.opacity(0.2), lineWidth: 1)
         )
-        .padding(.horizontal)
     }
 }
 

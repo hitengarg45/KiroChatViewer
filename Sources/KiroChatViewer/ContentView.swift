@@ -106,50 +106,64 @@ struct ContentView: View {
                 if isGroupedByWorkspace {
                     List(selection: $selectedConversation) {
                         ForEach(groupedConversations, id: \.directory) { group in
-                            DisclosureGroup(
-                                isExpanded: Binding(
-                                    get: { expandedDirectories.contains(group.directory) },
-                                    set: { isExpanded in
-                                        if isExpanded {
-                                            expandedDirectories.insert(group.directory)
-                                        } else {
+                            Section {
+                                if expandedDirectories.contains(group.directory) {
+                                    ForEach(group.conversations) { conv in
+                                        ConversationRow(
+                                            conversation: conv,
+                                            isSelected: selectedConversation?.id == conv.id,
+                                            indented: true,
+                                            bookmarks: bookmarks,
+                                            titles: titles,
+                                            onDelete: {
+                                                if selectedConversation?.id == conv.id { selectedConversation = nil }
+                                                db.deleteConversation(conv)
+                                            }
+                                        )
+                                        .tag(conv)
+                                        .listRowSeparator(group.conversations.count > 1 ? .visible : .hidden)
+                                    }
+                                }
+                            } header: {
+                                Button {
+                                    withAnimation {
+                                        if expandedDirectories.contains(group.directory) {
                                             expandedDirectories.remove(group.directory)
+                                        } else {
+                                            expandedDirectories.insert(group.directory)
                                         }
                                     }
-                                )
-                            ) {
-                                ForEach(group.conversations) { conv in
-                                    ConversationRow(
-                                        conversation: conv,
-                                        isSelected: selectedConversation?.id == conv.id,
-                                        bookmarks: bookmarks,
-                                        titles: titles,
-                                        onDelete: {
-                                            if selectedConversation?.id == conv.id { selectedConversation = nil }
-                                            db.deleteConversation(conv)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "folder.fill")
+                                            .foregroundStyle(.blue)
+                                            .font(.title3)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(group.directory.split(separator: "/").last.map(String.init) ?? group.directory)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(.primary)
+                                            HStack(spacing: 8) {
+                                                Text("\(group.conversations.count) chat\(group.conversations.count == 1 ? "" : "s")")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                if let latest = group.conversations.first {
+                                                    Text("Latest: \(latest.updatedAt, style: .relative)")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.tertiary)
+                                                }
+                                            }
                                         }
-                                    )
-                                    .tag(conv)
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "folder.fill")
-                                        .foregroundStyle(.blue)
-                                        .font(.title3)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(group.directory.split(separator: "/").last.map(String.init) ?? group.directory)
-                                            .fontWeight(.medium)
-                                        Text(group.directory)
-                                            .font(.caption2)
+                                        Spacer()
+                                        Image(systemName: expandedDirectories.contains(group.directory) ? "chevron.down" : "chevron.right")
+                                            .font(.caption)
                                             .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
                                     }
-                                    Spacer()
-                                    Text("\(group.conversations.count)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    .padding(.vertical, 3)
+                                    .padding(.horizontal, 4)
+                                    .padding(.trailing, 12)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -284,7 +298,7 @@ struct ContentView: View {
             if let conv = selectedConversation {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
-                    .id(conv.id)
+                    .id("\(conv.id)-\(conv.updatedAt.timeIntervalSince1970)")
                     .background(themeManager.isKiro ? themeManager.activeTheme.background : Color.clear)
             } else {
                 Text("Select a conversation")
@@ -327,6 +341,12 @@ struct ContentView: View {
             perf.end("Load")
             perf.record("Count", "\(db.conversations.count)")
             AppLogger.ui.info("Conversations updated: \(db.conversations.count) total")
+            
+            // Update selected conversation with fresh data
+            if let selected = selectedConversation,
+               let updated = db.conversations.first(where: { $0.id == selected.id }) {
+                selectedConversation = updated
+            }
             
             // Auto-backup after load
             if !db.conversations.isEmpty {
@@ -557,6 +577,7 @@ struct NewFolderSheet: View {
 struct ConversationRow: View {
     let conversation: Conversation
     let isSelected: Bool
+    var indented: Bool = false
     @ObservedObject var bookmarks: BookmarkManager
     @ObservedObject var titles: TitleManager
     let onDelete: () -> Void
@@ -570,7 +591,10 @@ struct ConversationRow: View {
     }
     
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Image(systemName: "terminal.fill")
+                .font(.caption)
+                .foregroundStyle(.purple.opacity(0.6))
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
                     if titles.isPinned(conversation.id) {
@@ -587,9 +611,9 @@ struct ConversationRow: View {
                         .lineLimit(2)
                 }
                 HStack {
-                    Text(conversation.directory.split(separator: "/").last ?? "")
+                    Text("\(conversation.messages.count) msg\(conversation.messages.count == 1 ? "" : "s")")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                     Spacer()
                     Text(conversation.updatedAt, style: .relative)
                         .font(.caption)
@@ -655,9 +679,17 @@ struct ConversationRow: View {
                 .frame(width: 24)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .padding(.leading, indented ? 16 : 0)
         .contentShape(Rectangle())
-        .listRowBackground(isHovering && !isSelected ? Color.secondary.opacity(0.1) : Color.clear)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovering && !isSelected ? Color.secondary.opacity(0.1) : Color.clear)
+                .padding(.vertical, 2)
+                .padding(.horizontal, 4)
+        )
+        .listRowSeparator(.visible)
         .onHover { isHovering = $0 }
         .alert("Delete Conversation?", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) {}

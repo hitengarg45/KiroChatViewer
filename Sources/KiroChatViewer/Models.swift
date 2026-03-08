@@ -97,6 +97,10 @@ struct ToolCall: Identifiable {
         args.map { "\($0.key): \(formatValue($0.value))" }.joined(separator: ", ")
     }
     
+    var fullArgsDescription: String {
+        args.map { "\($0.key): \(formatFullValue($0.value))" }.joined(separator: "\n")
+    }
+    
     private func formatValue(_ value: Any) -> String {
         if let s = value as? String {
             return s.count > 80 ? "\"\(s.prefix(80))...\"" : "\"\(s)\""
@@ -104,6 +108,16 @@ struct ToolCall: Identifiable {
             return "[\(arr.count) items]"
         } else if let dict = value as? [String: Any] {
             return "{\(dict.count) keys}"
+        }
+        return "\(value)"
+    }
+    
+    private func formatFullValue(_ value: Any) -> String {
+        if let s = value as? String { return "\"\(s)\"" }
+        else if let arr = value as? [Any] {
+            return "[\n  " + arr.map { formatFullValue($0) }.joined(separator: ",\n  ") + "\n]"
+        } else if let dict = value as? [String: Any] {
+            return "{\n  " + dict.map { "\($0.key): \(formatFullValue($0.value))" }.joined(separator: ",\n  ") + "\n}"
         }
         return "\(value)"
     }
