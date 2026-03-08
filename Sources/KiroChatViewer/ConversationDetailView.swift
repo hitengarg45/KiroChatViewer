@@ -13,6 +13,11 @@ struct ConversationDetailView: View {
     @StateObject private var mdCache = MarkdownCache()
     @StateObject private var theme = ThemeManager.shared
     @Binding var selectedConversation: Conversation?
+    @EnvironmentObject var titles: TitleManager
+    
+    private var displayTitle: String {
+        titles.getTitle(for: conversation.id) ?? conversation.title
+    }
     
     var body: some View {
         ZStack {
@@ -20,7 +25,7 @@ struct ConversationDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(conversation.title)
+                            Text(displayTitle)
                                 .font(.title)
                             Text(conversation.directory)
                                 .font(.caption)
@@ -179,7 +184,7 @@ struct ConversationDetailView: View {
     
     private func generateMarkdown() -> String {
         AppLogger.ui.info("Generating markdown for conversation: \(conversation.id)")
-        var md = "# \(conversation.title)\n\n"
+        var md = "# \(displayTitle)\n\n"
         md += "**Directory:** \(conversation.directory)\n\n"
         md += "**Updated:** \(conversation.updatedAt.formatted())\n\n---\n\n"
         for message in conversation.messages {

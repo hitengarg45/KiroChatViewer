@@ -431,6 +431,16 @@ struct ConversationSettings: View {
     @AppStorage("isGroupedByWorkspace") private var isGroupedByWorkspace: Bool = false
     @AppStorage("groupSortOrder") private var groupSortOrder: String = "Name"
     @AppStorage("flatSortOrder") private var flatSortOrder: String = "Latest"
+    @AppStorage("autoGenerateTitles") private var autoGenerateTitles: Bool = true
+    @AppStorage("titleModel") private var titleModel: String = "qwen3-coder-480b"
+    
+    private let availableModels = [
+        ("qwen3-coder-480b", "Qwen3 Coder 480B (0.01x)"),
+        ("glm-4.7-flash", "GLM 4.7 Flash (0.05x)"),
+        ("qwen3-coder-next", "Qwen3 Coder Next (0.05x)"),
+        ("minimax-m2.1", "MiniMax M2.1 (0.15x)"),
+        ("claude-haiku-4.5", "Claude Haiku 4.5 (0.40x)")
+    ]
     
     var body: some View {
         Form {
@@ -452,6 +462,20 @@ struct ConversationSettings: View {
                         Text("Oldest").tag("Oldest")
                     }
                 }
+            }
+            
+            Section("Title Generation") {
+                Toggle("Auto-generate titles on launch", isOn: $autoGenerateTitles)
+                
+                Picker("Model", selection: $titleModel) {
+                    ForEach(availableModels, id: \.0) { model in
+                        Text(model.1).tag(model.0)
+                    }
+                }
+                
+                Text("Titles are generated using kiro-cli in the background, one at a time from newest to oldest. Conversations with existing titles are skipped.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             
             Section("Filtering") {

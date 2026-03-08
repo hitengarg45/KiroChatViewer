@@ -298,6 +298,7 @@ struct ContentView: View {
             if let conv = selectedConversation {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
+                    .environmentObject(titles)
                     .id("\(conv.id)-\(conv.updatedAt.timeIntervalSince1970)")
                     .background(themeManager.isKiro ? themeManager.activeTheme.background : Color.clear)
             } else {
@@ -353,6 +354,8 @@ struct ContentView: View {
                 DispatchQueue.global(qos: .utility).async {
                     BackupManager.shared.backupIfNeeded()
                 }
+                // Auto-generate titles
+                titles.startAutoGeneration(for: db.conversations)
             }
         }
         .alert("Error", isPresented: .constant(db.error != nil)) {
@@ -592,9 +595,15 @@ struct ConversationRow: View {
     
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "terminal.fill")
-                .font(.caption)
-                .foregroundStyle(.purple.opacity(0.6))
+            if titles.generatingId == conversation.id {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 14, height: 14)
+            } else {
+                Image(systemName: "terminal.fill")
+                    .font(.caption)
+                    .foregroundStyle(.purple.opacity(0.6))
+            }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
                     if titles.isPinned(conversation.id) {
@@ -635,6 +644,12 @@ struct ConversationRow: View {
                         showRenameDialog = true
                     } label: {
                         Label("Rename", systemImage: "pencil")
+                    }
+                    
+                    Button {
+                        titles.generateSingleTitle(for: conversation)
+                    } label: {
+                        Label("Generate Title", systemImage: "sparkles")
                     }
                     
                     // Bookmark submenu
