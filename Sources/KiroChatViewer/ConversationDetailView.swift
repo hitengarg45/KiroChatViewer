@@ -241,7 +241,7 @@ struct MessageView: View {
                     .markdownTheme(.kiro)
                     .textSelection(.enabled)
                     .padding()
-                    .background(theme.isKiro ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
+                    .background(theme.usesCustomColors ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
                     .cornerRadius(8)
             }
         }
@@ -259,7 +259,7 @@ struct MessageView: View {
                     .markdownTheme(.kiro)
                     .textSelection(.enabled)
                     .padding()
-                    .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
+                    .background(theme.usesCustomColors ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
                     .cornerRadius(8)
             }
             Spacer()
@@ -280,7 +280,7 @@ struct MessageView: View {
                         .markdownTheme(.kiro)
                         .textSelection(.enabled)
                         .padding()
-                        .background(theme.isKiro ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.05))
+                        .background(theme.usesCustomColors ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.05))
                         .cornerRadius(8)
                 }
                 

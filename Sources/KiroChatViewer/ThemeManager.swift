@@ -39,12 +39,15 @@ struct AppTheme: Codable, Equatable, Identifiable {
     let userBubbleHex: String
     let assistantBubbleHex: String
     let isBuiltIn: Bool
+    var iconName: String?
     
     var accent: Color { Color(hex: accentHex) }
     var sidebar: Color { Color(hex: sidebarHex) }
     var background: Color { Color(hex: backgroundHex) }
     var userBubble: Color { Color(hex: userBubbleHex) }
     var assistantBubble: Color { Color(hex: assistantBubbleHex) }
+    
+    static let availableIcons = ["paintpalette", "leaf", "flame", "snowflake", "bolt", "heart", "star", "cloud", "drop", "wand.and.stars"]
     
     static let light = AppTheme(id: "light", name: "Light", accentHex: "#8B5CF6", sidebarHex: "#F5F5F5", backgroundHex: "#FFFFFF", userBubbleHex: "#E8E0FF", assistantBubbleHex: "#F0F0F0", isBuiltIn: true)
     static let dark = AppTheme(id: "dark", name: "Dark", accentHex: "#A78BFA", sidebarHex: "#1E1E1E", backgroundHex: "#1A1A1A", userBubbleHex: "#2D2554", assistantBubbleHex: "#2A2A2A", isBuiltIn: true)
@@ -75,6 +78,14 @@ class ThemeManager: ObservableObject {
     }
     
     var colorScheme: ColorScheme? {
+        if isCustomTheme {
+            // Determine from background brightness
+            let bg = activeTheme.backgroundHex
+            let hex = bg.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            var int: UInt64 = 0; Scanner(string: hex).scanHexInt64(&int)
+            let brightness = (Double((int >> 16) & 0xFF) + Double((int >> 8) & 0xFF) + Double(int & 0xFF)) / (255 * 3)
+            return brightness < 0.5 ? .dark : .light
+        }
         switch mode {
         case .system:
             return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
@@ -84,6 +95,10 @@ class ThemeManager: ObservableObject {
     }
     
     var activeTheme: AppTheme {
+        if !activeCustomThemeId.isEmpty,
+           let custom = customThemes.first(where: { $0.id == activeCustomThemeId }) {
+            return custom
+        }
         switch mode {
         case .system:
             return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
@@ -93,7 +108,9 @@ class ThemeManager: ObservableObject {
         }
     }
     
-    var isKiro: Bool { mode == .kiro }
+    var isCustomTheme: Bool { !activeCustomThemeId.isEmpty }
+    var isKiro: Bool { mode == .kiro && !isCustomTheme }
+    var usesCustomColors: Bool { isKiro || isCustomTheme }
     
     func resetToDefaults() {
         mode = .system

@@ -198,7 +198,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Kiro Chats")
-            .background(themeManager.isKiro ? themeManager.activeTheme.sidebar : Color.clear)
+            .background(themeManager.usesCustomColors ? themeManager.activeTheme.sidebar : Color.clear)
             .toolbar {
                 ToolbarItemGroup(placement: .automatic) {
                     Button { showFolderPicker = true } label: {
@@ -302,12 +302,12 @@ struct ContentView: View {
                     .environmentObject(db)
                     .environmentObject(titles)
                     .id("\(conv.id)-\(conv.updatedAt.timeIntervalSince1970)")
-                    .background(themeManager.isKiro ? themeManager.activeTheme.background : Color.clear)
+                    .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
             } else {
                 Text("Select a conversation")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(themeManager.isKiro ? themeManager.activeTheme.background : Color.clear)
+                    .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
             }
         }
         .environmentObject(bookmarks)

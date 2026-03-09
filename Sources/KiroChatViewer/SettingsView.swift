@@ -97,9 +97,11 @@ struct SettingsView: View {
                     case .database: DatabaseSettings()
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: 460, alignment: .leading)
+                .padding(.trailing, 12)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
         .frame(width: 680, height: 480)
         .preferredColorScheme(theme.colorScheme)
@@ -244,6 +246,7 @@ struct AppearanceSettings: View {
     @State private var editingTheme: AppTheme?
     @State private var showResetConfirm = false
     @State private var pendingMode: ThemeMode = .system
+    @State private var pendingCustomThemeId: String = ""
     @State private var pendingFontSize: Double = 14
     @State private var pendingLineSpacing: Double = 4
     @State private var pendingFontFamily: String = "System"
@@ -257,6 +260,7 @@ struct AppearanceSettings: View {
     
     private func loadCurrent() {
         pendingMode = theme.mode
+        pendingCustomThemeId = theme.activeCustomThemeId
         pendingFontSize = theme.fontSize
         pendingLineSpacing = theme.lineSpacing
         pendingFontFamily = theme.fontFamily
@@ -269,14 +273,16 @@ struct AppearanceSettings: View {
         hasChanges = false
     }
     private func checkChanges() {
-        hasChanges = pendingMode != theme.mode || pendingFontSize != theme.fontSize ||
+        hasChanges = pendingMode != theme.mode || pendingCustomThemeId != theme.activeCustomThemeId ||
+            pendingFontSize != theme.fontSize ||
             pendingLineSpacing != theme.lineSpacing || pendingFontFamily != theme.fontFamily ||
             pendingFolderFontSize != theme.folderFontSize || pendingConvFontSize != theme.conversationFontSize ||
             pendingMsgFontSize != theme.messageFontSize || pendingToolMode != theme.toolDisplayMode ||
             pendingTerminalStyle != theme.terminalStyle || pendingDiffStyle != theme.diffStyle
     }
     private func apply() {
-        theme.mode = pendingMode; theme.fontSize = pendingFontSize
+        theme.mode = pendingMode; theme.activeCustomThemeId = pendingCustomThemeId
+        theme.fontSize = pendingFontSize
         theme.lineSpacing = pendingLineSpacing; theme.fontFamily = pendingFontFamily
         theme.folderFontSize = pendingFolderFontSize; theme.conversationFontSize = pendingConvFontSize
         theme.messageFontSize = pendingMsgFontSize; theme.toolDisplayMode = pendingToolMode
@@ -284,6 +290,10 @@ struct AppearanceSettings: View {
         hasChanges = false
     }
     private var previewTheme: AppTheme {
+        if !pendingCustomThemeId.isEmpty,
+           let custom = theme.customThemes.first(where: { $0.id == pendingCustomThemeId }) {
+            return custom
+        }
         switch pendingMode {
         case .system: return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
         case .light: return .light; case .dark: return .dark; case .kiro: return .kiro
@@ -293,45 +303,65 @@ struct AppearanceSettings: View {
     var body: some View {
         VStack(spacing: 12) {
             SettingCard(title: "THEME", icon: "circle.lefthalf.filled", iconColor: .purple) {
+                // Built-in themes row
                 HStack(spacing: 10) {
                     ForEach(ThemeMode.allCases) { mode in
-                        ThemeModeCard(mode: mode, isSelected: pendingMode == mode) {
-                            pendingMode = mode; checkChanges()
+                        ThemeModeCard(mode: mode, isSelected: pendingMode == mode && pendingCustomThemeId.isEmpty) {
+                            pendingMode = mode
+                            pendingCustomThemeId = ""
+                            checkChanges()
                         }
                     }
-                    // Custom themes inline
-                    ForEach(theme.customThemes) { custom in
-                        Button {
-                            // TODO: apply custom theme
-                        } label: {
+                }
+                .padding(.vertical, 4)
+                
+                // Custom themes row (if any)
+                if !theme.customThemes.isEmpty || true {
+                    HStack(spacing: 10) {
+                        ForEach(theme.customThemes) { custom in
+                            VStack(spacing: 2) {
+                                Button {
+                                    pendingCustomThemeId = custom.id
+                                    checkChanges()
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        Image(systemName: custom.iconName ?? "paintpalette")
+                                            .font(.title3).frame(height: 24)
+                                        Text(custom.name).font(.caption).lineLimit(1)
+                                    }
+                                    .frame(width: 70, height: 60)
+                                    .background(pendingCustomThemeId == custom.id ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.05))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(pendingCustomThemeId == custom.id ? Color.accentColor : Color.clear, lineWidth: 2))
+                                    .cornerRadius(8)
+                                }
+                                .buttonStyle(.plain)
+                                
+                                HStack(spacing: 6) {
+                                    Button { editingTheme = custom } label: {
+                                        Image(systemName: "pencil").font(.system(size: 9))
+                                    }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                    Button { theme.deleteCustomTheme(custom) } label: {
+                                        Image(systemName: "trash").font(.system(size: 9))
+                                    }.buttonStyle(.plain).foregroundStyle(.red.opacity(0.7))
+                                }
+                            }
+                        }
+                        
+                        Button { showNewTheme = true } label: {
                             VStack(spacing: 6) {
-                                Circle().fill(Color(hex: custom.accentHex)).frame(width: 24, height: 24)
-                                Text(custom.name).font(.caption).lineLimit(1)
+                                Image(systemName: "plus").font(.title3).frame(height: 24)
+                                Text("New").font(.caption)
                             }
                             .frame(width: 70, height: 60)
                             .background(Color.secondary.opacity(0.05))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [4])))
                             .cornerRadius(8)
-                            .contextMenu {
-                                Button { editingTheme = custom } label: { Label("Edit", systemImage: "pencil") }
-                                Button(role: .destructive) { theme.deleteCustomTheme(custom) } label: { Label("Delete", systemImage: "trash") }
-                            }
                         }
                         .buttonStyle(.plain)
+                        
+                        Spacer()
                     }
-                    // Add new theme button
-                    Button { showNewTheme = true } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: "plus").font(.title3).frame(height: 24)
-                            Text("Custom").font(.caption)
-                        }
-                        .frame(width: 70, height: 60)
-                        .background(Color.secondary.opacity(0.05))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [4])))
-                        .cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
                 }
-                .padding(.vertical, 4)
                 
                 ThemePreview(theme: previewTheme)
                     .padding(.top, 4)
@@ -505,6 +535,7 @@ struct CustomThemeEditor: View {
     let theme: AppTheme?; let onSave: (AppTheme) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var selectedIcon = "paintpalette"
     @State private var accentColor: Color = .purple
     @State private var sidebarColor: Color = Color(white: 0.95)
     @State private var backgroundColor: Color = .white
@@ -514,27 +545,53 @@ struct CustomThemeEditor: View {
     var body: some View {
         VStack(spacing: 16) {
             Text(theme == nil ? "New Custom Theme" : "Edit Theme").font(.headline)
-            Form {
-                TextField("Theme Name", text: $name)
-                ColorPicker("Accent Color", selection: $accentColor)
-                ColorPicker("Sidebar Background", selection: $sidebarColor)
-                ColorPicker("Content Background", selection: $backgroundColor)
-                ColorPicker("User Bubble", selection: $userBubbleColor)
-                ColorPicker("Assistant Bubble", selection: $assistantBubbleColor)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Name").frame(width: 100, alignment: .leading)
+                    TextField("Theme Name", text: $name)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Icon").frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 8) {
+                        ForEach(AppTheme.availableIcons, id: \.self) { icon in
+                            Button { selectedIcon = icon } label: {
+                                Image(systemName: icon)
+                                    .font(.body)
+                                    .foregroundStyle(selectedIcon == icon ? accentColor : .secondary)
+                                    .frame(width: 28, height: 28)
+                                    .background(selectedIcon == icon ? accentColor.opacity(0.2) : Color.secondary.opacity(0.05))
+                                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(selectedIcon == icon ? accentColor : Color.clear, lineWidth: 1.5))
+                                    .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                
+                HStack { Text("Accent").frame(width: 100, alignment: .leading); ColorPicker("", selection: $accentColor).labelsHidden() }
+                HStack { Text("Sidebar").frame(width: 100, alignment: .leading); ColorPicker("", selection: $sidebarColor).labelsHidden() }
+                HStack { Text("Background").frame(width: 100, alignment: .leading); ColorPicker("", selection: $backgroundColor).labelsHidden() }
+                HStack { Text("User Bubble").frame(width: 100, alignment: .leading); ColorPicker("", selection: $userBubbleColor).labelsHidden() }
+                HStack { Text("Assistant Bubble").frame(width: 100, alignment: .leading); ColorPicker("", selection: $assistantBubbleColor).labelsHidden() }
             }
-            ThemePreview(theme: AppTheme(id: theme?.id ?? UUID().uuidString, name: name, accentHex: accentColor.hex, sidebarHex: sidebarColor.hex, backgroundHex: backgroundColor.hex, userBubbleHex: userBubbleColor.hex, assistantBubbleHex: assistantBubbleColor.hex, isBuiltIn: false))
+            .padding(.horizontal, 4)
+            
+            ThemePreview(theme: AppTheme(id: theme?.id ?? UUID().uuidString, name: name, accentHex: accentColor.hex, sidebarHex: sidebarColor.hex, backgroundHex: backgroundColor.hex, userBubbleHex: userBubbleColor.hex, assistantBubbleHex: assistantBubbleColor.hex, isBuiltIn: false, iconName: selectedIcon))
+            
             HStack {
                 Button("Cancel") { dismiss() }
                 Spacer()
                 Button("Save") {
-                    onSave(AppTheme(id: theme?.id ?? UUID().uuidString, name: name, accentHex: accentColor.hex, sidebarHex: sidebarColor.hex, backgroundHex: backgroundColor.hex, userBubbleHex: userBubbleColor.hex, assistantBubbleHex: assistantBubbleColor.hex, isBuiltIn: false))
+                    onSave(AppTheme(id: theme?.id ?? UUID().uuidString, name: name, accentHex: accentColor.hex, sidebarHex: sidebarColor.hex, backgroundHex: backgroundColor.hex, userBubbleHex: userBubbleColor.hex, assistantBubbleHex: assistantBubbleColor.hex, isBuiltIn: false, iconName: selectedIcon))
                     dismiss()
                 }.disabled(name.isEmpty).buttonStyle(.borderedProminent)
             }
         }
-        .padding().frame(width: 380, height: 420)
+        .padding().frame(width: 400, height: 480)
         .onAppear {
-            if let t = theme { name = t.name; accentColor = t.accent; sidebarColor = t.sidebar; backgroundColor = t.background; userBubbleColor = t.userBubble; assistantBubbleColor = t.assistantBubble }
+            if let t = theme { name = t.name; selectedIcon = t.iconName ?? "paintpalette"; accentColor = t.accent; sidebarColor = t.sidebar; backgroundColor = t.background; userBubbleColor = t.userBubble; assistantBubbleColor = t.assistantBubble }
         }
     }
 }
