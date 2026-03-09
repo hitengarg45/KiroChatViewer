@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.4.0
+## Current Version: 3.5.0
 
-[Download Latest Release](Releases/KiroChatViewer-v3.4.0.dmg) (3.1 MB)
+[Download Latest Release](Releases/KiroChatViewer-v3.5.0.dmg)
 
 ## Features
 
@@ -29,6 +29,10 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 - 🔤 **Font settings** — font family, size, and line spacing with live preview
 - 💬 **Chat-style layout** — user messages right-aligned, Kiro responses left-aligned
 - 🔧 **Full tool call details** — arguments and results always visible with scroll
+- 🖥️ **Tool-specific rendering** — terminal-style bash, diff view for file changes, search/glob/AWS/web views
+- 🎛️ **Terminal styles** — macOS Terminal, iTerm2, Warp, Hyper with preview cards
+- 📊 **Diff view modes** — inline or side-by-side for file changes
+- 🤖 **Auto title generation** — AI-generated conversation titles via kiro-cli
 - 📤 Export conversations to Markdown
 - 🌓 Light/Dark mode toggle
 - 💬 Full markdown rendering with syntax highlighting
@@ -46,7 +50,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.4.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.5.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -112,6 +116,31 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 3.5.0 (2026-03-09)
+
+**Settings Overhaul, Tool Rendering & Auto Titles**
+
+New Features:
+- ✅ Settings redesign: card-based UI, colored badges, pending state for all settings
+- ✅ Tool-specific rendering: terminal bash, diff view, search, glob, AWS, web, code views
+- ✅ Terminal styles: macOS Terminal, iTerm2, Warp, Hyper with preview cards
+- ✅ Diff view: inline vs side-by-side modes
+- ✅ Granular font sizes: folders, conversations, messages
+- ✅ Tool display modes: open, collapsible, hidden
+- ✅ Auto title generation via kiro-cli (kiro-fast agent, max 10/launch)
+- ✅ Enhanced pin UI: blue accent bar, bold title, pin badge overlay
+- ✅ Custom themes inline with built-in themes
+
+Bug Fixes:
+- ✅ Fixed conversation detail not updating on reload
+- ✅ Fixed settings applying instantly without clicking Apply
+
+Technical:
+- Tool-specific views: BashToolView, FsWriteToolView, FsReadToolView, GrepToolView, GlobToolView, AwsToolView, WebSearchToolView, CodeToolView
+- DiffView supports inline and side-by-side modes
+- TitleManager rewritten with kiro-cli integration and kiro-fast agent
+- SettingCard/SettingRow reusable components
 
 ### Version 3.4.0 (2026-03-08)
 

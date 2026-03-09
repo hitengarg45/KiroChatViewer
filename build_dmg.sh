@@ -6,7 +6,7 @@ set -e
 #        ./build_dmg.sh release  - builds versioned release DMG
 
 APP_NAME="KiroChatViewer"
-VERSION="3.4.0"
+VERSION="3.5.0"
 SOURCE_APP="${APP_NAME}.app"
 BACKGROUND_FILE="Resources/dmg_background.png"
 CUSTOM_BACKGROUND="Resources/dmg_background_source.png"

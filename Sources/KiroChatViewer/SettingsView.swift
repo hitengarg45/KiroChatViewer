@@ -184,7 +184,7 @@ struct AboutSettings: View {
                     Text("KiroChatViewer")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("Version 3.4.0")
+                    Text("Version 3.5.0")
                         .font(.caption)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
