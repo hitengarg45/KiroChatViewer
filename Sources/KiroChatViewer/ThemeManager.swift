@@ -60,6 +60,10 @@ class ThemeManager: ObservableObject {
     @AppStorage("fontSize") var fontSize: Double = 14
     @AppStorage("lineSpacing") var lineSpacing: Double = 4
     @AppStorage("fontFamily") var fontFamily: String = "System"
+    @AppStorage("folderFontSize") var folderFontSize: Double = 14
+    @AppStorage("conversationFontSize") var conversationFontSize: Double = 13
+    @AppStorage("messageFontSize") var messageFontSize: Double = 14
+    @AppStorage("toolDisplayMode") var toolDisplayMode: String = "open"
     @Published var customThemes: [AppTheme] = []
     @AppStorage("activeCustomThemeId") var activeCustomThemeId: String = ""
     
@@ -94,6 +98,10 @@ class ThemeManager: ObservableObject {
         fontSize = 14
         lineSpacing = 4
         fontFamily = "System"
+        folderFontSize = 14
+        conversationFontSize = 13
+        messageFontSize = 14
+        toolDisplayMode = "open"
         activeCustomThemeId = ""
     }
     

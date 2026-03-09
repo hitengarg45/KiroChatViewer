@@ -140,7 +140,7 @@ struct ContentView: View {
                                             .font(.title3)
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(group.directory.split(separator: "/").last.map(String.init) ?? group.directory)
-                                                .fontWeight(.medium)
+                                                .font(.system(size: themeManager.folderFontSize, weight: .medium))
                                                 .foregroundStyle(.primary)
                                             HStack(spacing: 8) {
                                                 Text("\(group.conversations.count) chat\(group.conversations.count == 1 ? "" : "s")")
@@ -200,70 +200,71 @@ struct ContentView: View {
             .navigationTitle("Kiro Chats")
             .background(themeManager.isKiro ? themeManager.activeTheme.sidebar : Color.clear)
             .toolbar {
-                Button { showFolderPicker = true } label: {
-                    Label("New Chat", systemImage: "plus.message")
-                }
-                .help("Start a new chat in a folder")
-                
-                Toggle(isOn: $isGroupedByWorkspace) {
-                    Label("Group", systemImage: isGroupedByWorkspace ? "folder.fill" : "list.bullet")
-                }
-                .toggleStyle(.button)
-                .help(isGroupedByWorkspace ? "Show flat list" : "Group by workspace")
-                
-                Menu {
-                    if isGroupedByWorkspace {
-                        Picker("Sort Groups By", selection: $groupSortOrder) {
-                            Text("Name").tag(GroupSortOrder.name)
-                            Text("Latest Conversation").tag(GroupSortOrder.latestConversation)
-                            Text("Oldest Conversation").tag(GroupSortOrder.oldestConversation)
+                ToolbarItemGroup(placement: .automatic) {
+                    Button { showFolderPicker = true } label: {
+                        Label("New Chat", systemImage: "plus.message")
+                    }
+                    .help("Start a new chat in a folder")
+                    
+                    Toggle(isOn: $isGroupedByWorkspace) {
+                        Label("Group", systemImage: isGroupedByWorkspace ? "folder.fill" : "list.bullet")
+                    }
+                    .toggleStyle(.button)
+                    .help(isGroupedByWorkspace ? "Show flat list" : "Group by workspace")
+                    
+                    Menu {
+                        if isGroupedByWorkspace {
+                            Picker("Sort Groups By", selection: $groupSortOrder) {
+                                Text("Name").tag(GroupSortOrder.name)
+                                Text("Latest Conversation").tag(GroupSortOrder.latestConversation)
+                                Text("Oldest Conversation").tag(GroupSortOrder.oldestConversation)
+                            }
+                        } else {
+                            Picker("Sort By", selection: $flatSortOrder) {
+                                Text("Title").tag(FlatSortOrder.title)
+                                Text("Latest").tag(FlatSortOrder.latest)
+                                Text("Oldest").tag(FlatSortOrder.oldest)
+                            }
                         }
-                    } else {
-                        Picker("Sort By", selection: $flatSortOrder) {
-                            Text("Title").tag(FlatSortOrder.title)
-                            Text("Latest").tag(FlatSortOrder.latest)
-                            Text("Oldest").tag(FlatSortOrder.oldest)
+                    } label: {
+                        Label("Sort", systemImage: "arrow.up.arrow.down")
+                    }
+                    .help(isGroupedByWorkspace ? "Sort workspace groups" : "Sort conversations")
+                    
+                    Menu {
+                        Button { showTimeline = true } label: {
+                            Label("Timeline", systemImage: "clock")
                         }
-                    }
-                } label: {
-                    Label("Sort", systemImage: "arrow.up.arrow.down")
-                }
-                .help(isGroupedByWorkspace ? "Sort workspace groups" : "Sort conversations")
-                
-                Menu {
-                    Button { showTimeline = true } label: {
-                        Label("Timeline", systemImage: "clock")
-                    }
-                    Button { showPerformance = true } label: {
-                        Label("Performance", systemImage: "speedometer")
-                    }
-                    Divider()
-                    Button { showBackupConfirm = true } label: {
-                        Label("Backup Now", systemImage: "externaldrive.badge.plus")
-                    }
-                } label: {
-                    Label("Tools", systemImage: "wrench.and.screwdriver")
-                }
-                .help("View tools and metrics")
-                .popover(isPresented: $showPerformance) {
-                    PerformancePopover(monitor: perf)
-                }
-                
-                Menu {
-                    ForEach(ThemeMode.allCases) { mode in
-                        Button {
-                            themeManager.mode = mode
-                            isDarkMode = (mode == .dark || mode == .kiro)
-                        } label: {
-                            Label(mode.rawValue, systemImage: mode.icon)
+                        Button { showPerformance = true } label: {
+                            Label("Performance", systemImage: "speedometer")
                         }
+                        Divider()
+                        Button { showBackupConfirm = true } label: {
+                            Label("Backup Now", systemImage: "externaldrive.badge.plus")
+                        }
+                    } label: {
+                        Label("Tools", systemImage: "wrench.and.screwdriver")
                     }
-                } label: {
-                    Label(themeManager.mode.rawValue, systemImage: themeManager.mode.icon)
-                }
-                .help("Change theme mode")
-                
-                Button {
+                    .help("View tools and metrics")
+                    .popover(isPresented: $showPerformance) {
+                        PerformancePopover(monitor: perf)
+                    }
+                    
+                    Menu {
+                        ForEach(ThemeMode.allCases) { mode in
+                            Button {
+                                themeManager.mode = mode
+                                isDarkMode = (mode == .dark || mode == .kiro)
+                            } label: {
+                                Label(mode.rawValue, systemImage: mode.icon)
+                            }
+                        }
+                    } label: {
+                        Label(themeManager.mode.rawValue, systemImage: themeManager.mode.icon)
+                    }
+                    .help("Change theme mode")
+                    
+                    Button {
                     withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
                     perf.start("Load")
                     Task {
@@ -279,6 +280,7 @@ struct ContentView: View {
                 }
                 .rotationEffect(.degrees(rotationAngle))
                 .help("Refresh conversation list")
+                }
             }
             .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder]) { result in
                 if case .success(let url) = result {
@@ -630,6 +632,7 @@ struct ConversationRow: View {
                                 .foregroundStyle(.orange)
                         }
                         Text(displayTitle)
+                            .font(.system(size: ThemeManager.shared.conversationFontSize))
                             .lineLimit(2)
                             .fontWeight(titles.isPinned(conversation.id) ? .semibold : .regular)
                 }

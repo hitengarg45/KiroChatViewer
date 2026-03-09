@@ -94,27 +94,31 @@ struct ConversationDetailView: View {
             }
         }
         .toolbar {
-            Button {
-                withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
-                isReloading = true
-                Task {
-                    await db._loadConversations()
-                    selectedConversation = db.conversations.first { $0.id == conversation.id }
-                    isReloading = false
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
+                    isReloading = true
+                    Task {
+                        await db._loadConversations()
+                        selectedConversation = db.conversations.first { $0.id == conversation.id }
+                        isReloading = false
+                    }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                .rotationEffect(.degrees(rotationAngle))
+                .help("Refresh conversation")
             }
-            .rotationEffect(.degrees(rotationAngle))
-            .help("Refresh conversation")
             
-            Spacer()
-            
-            Button("Export") { 
-                AppLogger.ui.info("Export button clicked")
-                showExporter = true 
-            }
+            ToolbarItem(placement: .automatic) {
+                Button { 
+                    AppLogger.ui.info("Export button clicked")
+                    showExporter = true 
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
                 .help("Export as Markdown")
+            }
         }
         .fileExporter(
             isPresented: $showExporter,
@@ -281,8 +285,11 @@ struct MessageView: View {
                 }
                 
                 // Tool calls
-                ForEach(message.toolCalls) { call in
-                    ToolCallView(call: call)
+                let toolMode = ThemeManager.shared.toolDisplayMode
+                if toolMode != "hidden" {
+                    ForEach(message.toolCalls) { call in
+                        ToolCallView(call: call, displayMode: toolMode)
+                    }
                 }
             }
             Spacer()
@@ -295,12 +302,30 @@ struct MessageView: View {
 
 struct ToolCallView: View {
     let call: ToolCall
+    let displayMode: String
     @State private var resultExpanded = false
+    @State private var isCollapsed: Bool
+    
+    init(call: ToolCall, displayMode: String) {
+        self.call = call
+        self.displayMode = displayMode
+        self._isCollapsed = State(initialValue: displayMode == "collapsible")
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             // Tool header
             HStack(spacing: 6) {
+                if displayMode == "collapsible" {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { isCollapsed.toggle() }
+                    } label: {
+                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
                 Image(systemName: "wrench.and.screwdriver.fill")
                     .foregroundStyle(.orange)
                     .font(.caption)
@@ -321,58 +346,60 @@ struct ToolCallView: View {
                 }
             }
             
-            // Arguments — always visible
-            if !call.args.isEmpty {
-                Text("Arguments")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                ScrollView(.vertical, showsIndicators: true) {
-                    Text(call.fullArgsDescription)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 150)
-                .background(Color(.textBackgroundColor).opacity(0.5))
-                .cornerRadius(6)
-            }
-            
-            // Result — preview always visible, expand for full
-            if let result = call.result, !result.content.isEmpty {
-                HStack {
-                    Text("Result")
+            if !isCollapsed {
+                // Arguments — always visible
+                if !call.args.isEmpty {
+                    Text("Arguments")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle() }
-                    } label: {
-                        Text(resultExpanded ? "Show Less" : "Show More")
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
+                    
+                    ScrollView(.vertical, showsIndicators: true) {
+                        Text(call.fullArgsDescription)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxHeight: 150)
+                    .background(Color(.textBackgroundColor).opacity(0.5))
+                    .cornerRadius(6)
                 }
                 
-                ScrollView(.vertical, showsIndicators: true) {
-                    Text(result.content)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                // Result — preview always visible, expand for full
+                if let result = call.result, !result.content.isEmpty {
+                    HStack {
+                        Text("Result")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Spacer()
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle() }
+                        } label: {
+                            Text(resultExpanded ? "Show Less" : "Show More")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    ScrollView(.vertical, showsIndicators: true) {
+                        Text(result.content)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: resultExpanded ? 600 : 120)
+                    .background(Color(.textBackgroundColor).opacity(0.5))
+                    .cornerRadius(6)
                 }
-                .frame(maxHeight: resultExpanded ? 600 : 120)
-                .background(Color(.textBackgroundColor).opacity(0.5))
-                .cornerRadius(6)
             }
         }
         .padding(10)
