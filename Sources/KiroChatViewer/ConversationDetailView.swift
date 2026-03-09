@@ -347,58 +347,14 @@ struct ToolCallView: View {
             }
             
             if !isCollapsed {
-                // Arguments — always visible
-                if !call.args.isEmpty {
-                    Text("Arguments")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    ScrollView(.vertical, showsIndicators: true) {
-                        Text(call.fullArgsDescription)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxHeight: 150)
-                    .background(Color(.textBackgroundColor).opacity(0.5))
-                    .cornerRadius(6)
-                }
-                
-                // Result — preview always visible, expand for full
-                if let result = call.result, !result.content.isEmpty {
-                    HStack {
-                        Text("Result")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Spacer()
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle() }
-                        } label: {
-                            Text(resultExpanded ? "Show Less" : "Show More")
-                                .font(.caption2)
-                                .foregroundStyle(.blue)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    ScrollView(.vertical, showsIndicators: true) {
-                        Text(result.content)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxHeight: resultExpanded ? 600 : 120)
-                    .background(Color(.textBackgroundColor).opacity(0.5))
-                    .cornerRadius(6)
+                // Tool-specific rendering
+                switch call.name {
+                case "execute_bash":
+                    BashToolView(call: call, resultExpanded: $resultExpanded)
+                case "fs_write":
+                    FsWriteToolView(call: call, resultExpanded: $resultExpanded)
+                default:
+                    GenericToolArgsView(call: call, resultExpanded: $resultExpanded)
                 }
             }
         }
@@ -409,6 +365,215 @@ struct ToolCallView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.orange.opacity(0.2), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Bash Tool View
+
+struct BashToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var command: String { call.args["command"] as? String ?? "" }
+    var workingDir: String? { call.args["working_dir"] as? String ?? call.args["workingDir"] as? String }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let dir = workingDir {
+                Text(dir)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.green.opacity(0.7))
+            }
+            
+            HStack(alignment: .top, spacing: 6) {
+                Text("$")
+                    .font(.system(.caption, design: .monospaced, weight: .bold))
+                    .foregroundStyle(.green)
+                Text(command)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black.opacity(0.8))
+            .foregroundStyle(.green)
+            .cornerRadius(6)
+            
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - fs_write Tool View
+
+struct FsWriteToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var command: String { call.args["command"] as? String ?? "" }
+    var path: String { call.args["path"] as? String ?? "" }
+    var oldStr: String { call.args["old_str"] as? String ?? "" }
+    var newStr: String { call.args["new_str"] as? String ?? "" }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // File path
+            HStack(spacing: 4) {
+                Image(systemName: "doc.text").font(.caption2).foregroundStyle(.blue)
+                Text(path).font(.system(.caption, design: .monospaced)).foregroundStyle(.blue)
+                Spacer()
+                Text(command).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.purple.opacity(0.15)).foregroundStyle(.purple).cornerRadius(3)
+            }
+            
+            if command == "str_replace" && !oldStr.isEmpty {
+                // Diff view
+                DiffView(oldText: oldStr, newText: newStr)
+            } else if command == "create", let content = call.args["file_text"] as? String {
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(content)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 200)
+                .background(Color.green.opacity(0.05))
+                .cornerRadius(6)
+            } else {
+                GenericToolArgsView(call: call, resultExpanded: $resultExpanded)
+            }
+            
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - Diff View
+
+struct DiffView: View {
+    let oldText: String
+    let newText: String
+    
+    private var diffLines: [(type: String, text: String)] {
+        let oldLines = oldText.components(separatedBy: "\n")
+        let newLines = newText.components(separatedBy: "\n")
+        var result: [(String, String)] = []
+        
+        // Simple line-by-line diff
+        let oldSet = Set(oldLines)
+        let newSet = Set(newLines)
+        
+        for line in oldLines {
+            if !newSet.contains(line) {
+                result.append(("removed", line))
+            } else {
+                result.append(("context", line))
+            }
+        }
+        for line in newLines {
+            if !oldSet.contains(line) {
+                // Insert after the last context line before this position
+                result.append(("added", line))
+            }
+        }
+        return result
+    }
+    
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(diffLines.enumerated()), id: \.offset) { _, line in
+                    HStack(spacing: 6) {
+                        Text(line.type == "removed" ? "−" : line.type == "added" ? "+" : " ")
+                            .font(.system(.caption, design: .monospaced, weight: .bold))
+                            .foregroundStyle(line.type == "removed" ? .red : line.type == "added" ? .green : .secondary)
+                            .frame(width: 14)
+                        Text(line.text.isEmpty ? " " : line.text)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        line.type == "removed" ? Color.red.opacity(0.1) :
+                        line.type == "added" ? Color.green.opacity(0.1) : Color.clear
+                    )
+                }
+            }
+        }
+        .frame(maxHeight: 250)
+        .background(Color(.textBackgroundColor).opacity(0.5))
+        .cornerRadius(6)
+    }
+}
+
+// MARK: - Generic Tool Args View
+
+struct GenericToolArgsView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var body: some View {
+        if !call.args.isEmpty {
+            Text("Arguments").font(.caption).foregroundStyle(.secondary)
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(call.fullArgsDescription)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 150)
+            .background(Color(.textBackgroundColor).opacity(0.5))
+            .cornerRadius(6)
+        }
+        
+        ToolResultView(call: call, resultExpanded: $resultExpanded)
+    }
+}
+
+// MARK: - Tool Result View
+
+struct ToolResultView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var body: some View {
+        if let result = call.result, !result.content.isEmpty {
+            HStack {
+                Text("Result").font(.caption).foregroundStyle(.secondary)
+                Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle() }
+                } label: {
+                    Text(resultExpanded ? "Show Less" : "Show More").font(.caption2).foregroundStyle(.blue)
+                }.buttonStyle(.plain)
+            }
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(result.content)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: resultExpanded ? 600 : 120)
+            .background(Color(.textBackgroundColor).opacity(0.5))
+            .cornerRadius(6)
+        }
     }
 }
 
