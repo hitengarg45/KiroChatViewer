@@ -347,12 +347,23 @@ struct ToolCallView: View {
             }
             
             if !isCollapsed {
-                // Tool-specific rendering
                 switch call.name {
                 case "execute_bash":
                     BashToolView(call: call, resultExpanded: $resultExpanded)
                 case "fs_write":
                     FsWriteToolView(call: call, resultExpanded: $resultExpanded)
+                case "fs_read":
+                    FsReadToolView(call: call, resultExpanded: $resultExpanded)
+                case "grep", "WorkspaceSearch":
+                    GrepToolView(call: call, resultExpanded: $resultExpanded)
+                case "glob":
+                    GlobToolView(call: call, resultExpanded: $resultExpanded)
+                case "use_aws":
+                    AwsToolView(call: call, resultExpanded: $resultExpanded)
+                case "web_search", "web_fetch":
+                    WebSearchToolView(call: call, resultExpanded: $resultExpanded)
+                case "code":
+                    CodeToolView(call: call, resultExpanded: $resultExpanded)
                 default:
                     GenericToolArgsView(call: call, resultExpanded: $resultExpanded)
                 }
@@ -377,18 +388,37 @@ struct BashToolView: View {
     var command: String { call.args["command"] as? String ?? "" }
     var workingDir: String? { call.args["working_dir"] as? String ?? call.args["workingDir"] as? String }
     
+    private var terminalColors: (bg: Color, fg: Color) {
+        switch ThemeManager.shared.terminalStyle {
+        case "iterm": return (Color(hex: "#1E1E2E"), Color(hex: "#CDD6F4"))
+        case "warp": return (Color(hex: "#16131F"), Color(hex: "#B4A5FF"))
+        case "hyper": return (.black, Color(hex: "#50FA7B"))
+        default: return (Color(white: 0.95), .black) // macOS Terminal
+        }
+    }
+    
+    private var promptColor: Color {
+        switch ThemeManager.shared.terminalStyle {
+        case "iterm": return Color(hex: "#89B4FA")
+        case "warp": return Color(hex: "#7C5BF0")
+        case "hyper": return Color(hex: "#50FA7B")
+        default: return Color(hex: "#2E7D32")
+        }
+    }
+    
     var body: some View {
+        let colors = terminalColors
         VStack(alignment: .leading, spacing: 6) {
             if let dir = workingDir {
                 Text(dir)
                     .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.green.opacity(0.7))
+                    .foregroundStyle(promptColor.opacity(0.7))
             }
             
             HStack(alignment: .top, spacing: 6) {
                 Text("$")
                     .font(.system(.caption, design: .monospaced, weight: .bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(promptColor)
                 Text(command)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
@@ -397,9 +427,13 @@ struct BashToolView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.black.opacity(0.8))
-            .foregroundStyle(.green)
+            .background(colors.bg)
+            .foregroundStyle(colors.fg)
             .cornerRadius(6)
+            .overlay(
+                ThemeManager.shared.terminalStyle == "warp" ?
+                    RoundedRectangle(cornerRadius: 6).stroke(Color(hex: "#7C5BF0").opacity(0.3), lineWidth: 1) : nil
+            )
             
             ToolResultView(call: call, resultExpanded: $resultExpanded)
         }
@@ -459,59 +493,271 @@ struct DiffView: View {
     let oldText: String
     let newText: String
     
+    private var oldLines: [String] { oldText.components(separatedBy: "\n") }
+    private var newLines: [String] { newText.components(separatedBy: "\n") }
+    
     private var diffLines: [(type: String, text: String)] {
-        let oldLines = oldText.components(separatedBy: "\n")
-        let newLines = newText.components(separatedBy: "\n")
-        var result: [(String, String)] = []
-        
-        // Simple line-by-line diff
         let oldSet = Set(oldLines)
         let newSet = Set(newLines)
-        
+        var result: [(String, String)] = []
         for line in oldLines {
-            if !newSet.contains(line) {
-                result.append(("removed", line))
-            } else {
-                result.append(("context", line))
-            }
+            result.append((newSet.contains(line) ? "context" : "removed", line))
         }
-        for line in newLines {
-            if !oldSet.contains(line) {
-                // Insert after the last context line before this position
-                result.append(("added", line))
-            }
+        for line in newLines where !oldSet.contains(line) {
+            result.append(("added", line))
         }
         return result
     }
     
     var body: some View {
+        if ThemeManager.shared.diffStyle == "sideBySide" {
+            sideBySideView
+        } else {
+            inlineView
+        }
+    }
+    
+    private var inlineView: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(diffLines.enumerated()), id: \.offset) { _, line in
-                    HStack(spacing: 6) {
-                        Text(line.type == "removed" ? "−" : line.type == "added" ? "+" : " ")
-                            .font(.system(.caption, design: .monospaced, weight: .bold))
-                            .foregroundStyle(line.type == "removed" ? .red : line.type == "added" ? .green : .secondary)
-                            .frame(width: 14)
-                        Text(line.text.isEmpty ? " " : line.text)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        line.type == "removed" ? Color.red.opacity(0.1) :
-                        line.type == "added" ? Color.green.opacity(0.1) : Color.clear
-                    )
+                    DiffLineView(prefix: line.type == "removed" ? "−" : line.type == "added" ? "+" : " ",
+                                 text: line.text, type: line.type)
                 }
             }
         }
         .frame(maxHeight: 250)
         .background(Color(.textBackgroundColor).opacity(0.5))
         .cornerRadius(6)
+    }
+    
+    private var sideBySideView: some View {
+        HStack(alignment: .top, spacing: 1) {
+            // Old side
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Old").font(.system(size: 10, weight: .bold)).padding(4).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.05))
+                    ForEach(Array(oldLines.enumerated()), id: \.offset) { _, line in
+                        let isRemoved = !Set(newLines).contains(line)
+                        DiffLineView(prefix: isRemoved ? "−" : " ", text: line, type: isRemoved ? "removed" : "context")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color(.textBackgroundColor).opacity(0.5))
+            
+            // New side
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("New").font(.system(size: 10, weight: .bold)).padding(4).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.green.opacity(0.05))
+                    ForEach(Array(newLines.enumerated()), id: \.offset) { _, line in
+                        let isAdded = !Set(oldLines).contains(line)
+                        DiffLineView(prefix: isAdded ? "+" : " ", text: line, type: isAdded ? "added" : "context")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color(.textBackgroundColor).opacity(0.5))
+        }
+        .frame(maxHeight: 250)
+        .cornerRadius(6)
+    }
+}
+
+struct DiffLineView: View {
+    let prefix: String; let text: String; let type: String
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(prefix)
+                .font(.system(.caption, design: .monospaced, weight: .bold))
+                .foregroundStyle(type == "removed" ? .red : type == "added" ? .green : .secondary)
+                .frame(width: 14)
+            Text(text.isEmpty ? " " : text)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(type == "removed" ? Color.red.opacity(0.1) : type == "added" ? Color.green.opacity(0.1) : Color.clear)
+    }
+}
+
+// MARK: - fs_read Tool View
+
+struct FsReadToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var path: String { call.args["path"] as? String ?? "" }
+    var mode: String {
+        if let ops = call.args["operations"] as? [[String: Any]], let first = ops.first {
+            return first["mode"] as? String ?? ""
+        }
+        return call.args["mode"] as? String ?? "Line"
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text").font(.caption).foregroundStyle(.blue)
+                Text(path.isEmpty ? "multiple files" : path)
+                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.blue)
+                Spacer()
+                Text(mode).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.1)).foregroundStyle(.blue).cornerRadius(3)
+            }
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - Grep Tool View
+
+struct GrepToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var pattern: String { call.args["pattern"] as? String ?? call.args["searchQuery"] as? String ?? "" }
+    var searchPath: String { call.args["path"] as? String ?? call.args["searchRoot"] as? String ?? "" }
+    var include: String { call.args["include"] as? String ?? "" }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").font(.caption).foregroundStyle(.yellow)
+                Text("/\(pattern)/")
+                    .font(.system(.caption, design: .monospaced, weight: .medium))
+                    .foregroundStyle(.yellow)
+                if !include.isEmpty {
+                    Text(include).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            if !searchPath.isEmpty {
+                Text("in \(searchPath)")
+                    .font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - Glob Tool View
+
+struct GlobToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var pattern: String { call.args["pattern"] as? String ?? "" }
+    var path: String { call.args["path"] as? String ?? "" }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "folder.badge.magnifyingglass").font(.caption).foregroundStyle(.cyan)
+                Text(pattern)
+                    .font(.system(.caption, design: .monospaced, weight: .medium))
+                    .foregroundStyle(.cyan)
+            }
+            if !path.isEmpty {
+                Text("in \(path)")
+                    .font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - AWS Tool View
+
+struct AwsToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var service: String { call.args["service_name"] as? String ?? "" }
+    var operation: String { call.args["operation_name"] as? String ?? "" }
+    var region: String { call.args["region"] as? String ?? "" }
+    var label: String { call.args["label"] as? String ?? "" }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !label.isEmpty {
+                Text(label).font(.caption).foregroundStyle(.secondary)
+            }
+            HStack(alignment: .top, spacing: 6) {
+                Text("$").font(.system(.caption, design: .monospaced, weight: .bold)).foregroundStyle(.orange)
+                Text("aws \(service) \(operation)")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.orange)
+                if !region.isEmpty {
+                    Text("--region \(region)").font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black.opacity(0.8))
+            .cornerRadius(6)
+            
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - Web Search Tool View
+
+struct WebSearchToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var query: String { call.args["query"] as? String ?? call.args["url"] as? String ?? "" }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "globe").font(.caption).foregroundStyle(.blue)
+                Text(query)
+                    .font(.subheadline)
+                    .foregroundStyle(.blue)
+                    .lineLimit(2)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.blue.opacity(0.05))
+            .cornerRadius(6)
+            
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
+    }
+}
+
+// MARK: - Code Tool View
+
+struct CodeToolView: View {
+    let call: ToolCall
+    @Binding var resultExpanded: Bool
+    
+    var operation: String { call.args["operation"] as? String ?? "" }
+    var symbol: String { call.args["symbol_name"] as? String ?? call.args["pattern"] as? String ?? "" }
+    var filePath: String { call.args["file_path"] as? String ?? "" }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left.forwardslash.chevron.right").font(.caption).foregroundStyle(.purple)
+                Text(operation).font(.system(.caption, design: .monospaced, weight: .medium)).foregroundStyle(.purple)
+                if !symbol.isEmpty {
+                    Text(symbol).font(.system(.caption, design: .monospaced)).foregroundStyle(.primary)
+                }
+            }
+            if !filePath.isEmpty {
+                Text(filePath).font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
+        }
     }
 }
 

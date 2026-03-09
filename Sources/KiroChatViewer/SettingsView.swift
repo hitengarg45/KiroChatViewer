@@ -251,6 +251,8 @@ struct AppearanceSettings: View {
     @State private var pendingConvFontSize: Double = 13
     @State private var pendingMsgFontSize: Double = 14
     @State private var pendingToolMode: String = "open"
+    @State private var pendingTerminalStyle: String = "dark"
+    @State private var pendingDiffStyle: String = "inline"
     @State private var hasChanges = false
     
     private func loadCurrent() {
@@ -262,19 +264,23 @@ struct AppearanceSettings: View {
         pendingConvFontSize = theme.conversationFontSize
         pendingMsgFontSize = theme.messageFontSize
         pendingToolMode = theme.toolDisplayMode
+        pendingTerminalStyle = theme.terminalStyle
+        pendingDiffStyle = theme.diffStyle
         hasChanges = false
     }
     private func checkChanges() {
         hasChanges = pendingMode != theme.mode || pendingFontSize != theme.fontSize ||
             pendingLineSpacing != theme.lineSpacing || pendingFontFamily != theme.fontFamily ||
             pendingFolderFontSize != theme.folderFontSize || pendingConvFontSize != theme.conversationFontSize ||
-            pendingMsgFontSize != theme.messageFontSize || pendingToolMode != theme.toolDisplayMode
+            pendingMsgFontSize != theme.messageFontSize || pendingToolMode != theme.toolDisplayMode ||
+            pendingTerminalStyle != theme.terminalStyle || pendingDiffStyle != theme.diffStyle
     }
     private func apply() {
         theme.mode = pendingMode; theme.fontSize = pendingFontSize
         theme.lineSpacing = pendingLineSpacing; theme.fontFamily = pendingFontFamily
         theme.folderFontSize = pendingFolderFontSize; theme.conversationFontSize = pendingConvFontSize
         theme.messageFontSize = pendingMsgFontSize; theme.toolDisplayMode = pendingToolMode
+        theme.terminalStyle = pendingTerminalStyle; theme.diffStyle = pendingDiffStyle
         hasChanges = false
     }
     private var previewTheme: AppTheme {
@@ -372,16 +378,51 @@ struct AppearanceSettings: View {
             }
             
             SettingCard(title: "TOOL CALLS", icon: "wrench.and.screwdriver", iconColor: .orange) {
-                VStack(spacing: 8) {
-                    Text("How tool call blocks appear in conversations")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Picker("Display Mode", selection: $pendingToolMode) {
-                        Label("Always Open", systemImage: "eye").tag("open")
-                        Label("Collapsible", systemImage: "chevron.down.circle").tag("collapsible")
-                        Label("Hidden", systemImage: "eye.slash").tag("hidden")
+                VStack(spacing: 10) {
+                    // Display mode
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Display Mode").font(.caption).foregroundStyle(.secondary)
+                        Picker("", selection: $pendingToolMode) {
+                            Text("Always Open").tag("open")
+                            Text("Collapsible").tag("collapsible")
+                            Text("Hidden").tag("hidden")
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: pendingToolMode) { _ in checkChanges() }
                     }
-                    .pickerStyle(.radioGroup)
-                    .onChange(of: pendingToolMode) { _ in checkChanges() }
+                    
+                    Divider()
+                    
+                    // Terminal style
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Terminal Style").font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            TerminalStyleCard(name: "Terminal", bg: Color(white: 0.95), fg: .black, promptFg: Color(hex: "#2E7D32"),
+                                              isSelected: pendingTerminalStyle == "terminal") { pendingTerminalStyle = "terminal"; checkChanges() }
+                            TerminalStyleCard(name: "iTerm2", bg: Color(hex: "#1E1E2E"), fg: Color(hex: "#CDD6F4"), promptFg: Color(hex: "#89B4FA"),
+                                              isSelected: pendingTerminalStyle == "iterm") { pendingTerminalStyle = "iterm"; checkChanges() }
+                            TerminalStyleCard(name: "Warp", bg: Color(hex: "#16131F"), fg: Color(hex: "#B4A5FF"), promptFg: Color(hex: "#7C5BF0"),
+                                              isSelected: pendingTerminalStyle == "warp") { pendingTerminalStyle = "warp"; checkChanges() }
+                            TerminalStyleCard(name: "Hyper", bg: .black, fg: Color(hex: "#50FA7B"), promptFg: Color(hex: "#50FA7B"),
+                                              isSelected: pendingTerminalStyle == "hyper") { pendingTerminalStyle = "hyper"; checkChanges() }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // Diff style
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Diff View Style").font(.caption).foregroundStyle(.secondary)
+                        Picker("", selection: $pendingDiffStyle) {
+                            Text("Inline").tag("inline")
+                            Text("Side by Side").tag("sideBySide")
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: pendingDiffStyle) { _ in checkChanges() }
+                        
+                        // Diff preview
+                        DiffPreview(style: pendingDiffStyle)
+                    }
                 }
             }
             
@@ -696,6 +737,89 @@ struct FontSizeRow: View {
             Slider(value: $value, in: 10...22, step: 1)
                 .onChange(of: value) { _ in onChange?() }
             Text("\(Int(value))px").font(.system(.caption, design: .monospaced)).frame(width: 36)
+        }
+    }
+}
+
+struct TerminalStyleCard: View {
+    let name: String; let bg: Color; let fg: Color; let promptFg: Color; let isSelected: Bool; let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 2) {
+                        Text("$").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(promptFg)
+                        Text("swift build").font(.system(size: 8, design: .monospaced)).foregroundStyle(fg)
+                    }
+                    Text("Build complete!").font(.system(size: 7, design: .monospaced)).foregroundStyle(fg.opacity(0.6))
+                }
+                .padding(6)
+                .frame(width: 90, height: 36)
+                .background(bg)
+                .cornerRadius(4)
+                .overlay(name == "Warp" ? RoundedRectangle(cornerRadius: 4).stroke(Color(hex: "#7C5BF0").opacity(0.3), lineWidth: 1) : nil)
+                
+                Text(name).font(.caption2)
+            }
+            .padding(4)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2))
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct DiffPreview: View {
+    let style: String
+    var body: some View {
+        if style == "sideBySide" {
+            HStack(spacing: 1) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Old").font(.system(size: 8, weight: .bold)).padding(.horizontal, 4).padding(.vertical, 2)
+                    HStack(spacing: 2) {
+                        Text("−").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.red)
+                        Text("let x = false").font(.system(size: 8, design: .monospaced))
+                    }.padding(.horizontal, 4).padding(.vertical, 1).frame(maxWidth: .infinity, alignment: .leading).background(Color.red.opacity(0.1))
+                    HStack(spacing: 2) {
+                        Text(" ").font(.system(size: 8, design: .monospaced))
+                        Text("let y = 10").font(.system(size: 8, design: .monospaced))
+                    }.padding(.horizontal, 4).padding(.vertical, 1)
+                }
+                .frame(maxWidth: .infinity)
+                .background(Color(.textBackgroundColor).opacity(0.5))
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("New").font(.system(size: 8, weight: .bold)).padding(.horizontal, 4).padding(.vertical, 2)
+                    HStack(spacing: 2) {
+                        Text("+").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.green)
+                        Text("let x = true").font(.system(size: 8, design: .monospaced))
+                    }.padding(.horizontal, 4).padding(.vertical, 1).frame(maxWidth: .infinity, alignment: .leading).background(Color.green.opacity(0.1))
+                    HStack(spacing: 2) {
+                        Text(" ").font(.system(size: 8, design: .monospaced))
+                        Text("let y = 10").font(.system(size: 8, design: .monospaced))
+                    }.padding(.horizontal, 4).padding(.vertical, 1)
+                }
+                .frame(maxWidth: .infinity)
+                .background(Color(.textBackgroundColor).opacity(0.5))
+            }
+            .cornerRadius(6)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    Text("−").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.red).frame(width: 10)
+                    Text("let x = false").font(.system(size: 8, design: .monospaced))
+                }.padding(.horizontal, 6).padding(.vertical, 1).frame(maxWidth: .infinity, alignment: .leading).background(Color.red.opacity(0.1))
+                HStack(spacing: 4) {
+                    Text("+").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.green).frame(width: 10)
+                    Text("let x = true").font(.system(size: 8, design: .monospaced))
+                }.padding(.horizontal, 6).padding(.vertical, 1).frame(maxWidth: .infinity, alignment: .leading).background(Color.green.opacity(0.1))
+                HStack(spacing: 4) {
+                    Text(" ").frame(width: 10)
+                    Text("let y = 10").font(.system(size: 8, design: .monospaced))
+                }.padding(.horizontal, 6).padding(.vertical, 1)
+            }
+            .background(Color(.textBackgroundColor).opacity(0.5))
+            .cornerRadius(6)
         }
     }
 }

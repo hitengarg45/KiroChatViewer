@@ -64,6 +64,8 @@ class ThemeManager: ObservableObject {
     @AppStorage("conversationFontSize") var conversationFontSize: Double = 13
     @AppStorage("messageFontSize") var messageFontSize: Double = 14
     @AppStorage("toolDisplayMode") var toolDisplayMode: String = "open"
+    @AppStorage("terminalStyle") var terminalStyle: String = "terminal"
+    @AppStorage("diffStyle") var diffStyle: String = "inline"
     @Published var customThemes: [AppTheme] = []
     @AppStorage("activeCustomThemeId") var activeCustomThemeId: String = ""
     
@@ -102,6 +104,8 @@ class ThemeManager: ObservableObject {
         conversationFontSize = 13
         messageFontSize = 14
         toolDisplayMode = "open"
+        terminalStyle = "terminal"
+        diffStyle = "inline"
         activeCustomThemeId = ""
     }
     
