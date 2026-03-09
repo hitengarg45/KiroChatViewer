@@ -105,6 +105,39 @@ class DatabaseManager: ObservableObject {
         return result
     }
     
+    @MainActor
+    func reloadConversation(id: String) async -> Conversation? {
+        do {
+            let db = try Connection(dbPath.path)
+            let table = Table("conversations_v2")
+            let key = Expression<String>("key")
+            let conversationId = Expression<String>("conversation_id")
+            let value = Expression<String>("value")
+            let createdAt = Expression<Int64>("created_at")
+            let updatedAt = Expression<Int64>("updated_at")
+            
+            let query = table.filter(conversationId == id)
+            for row in try db.prepare(query) {
+                guard let data = row[value].data(using: .utf8) else { continue }
+                var conv = try JSONDecoder().decode(Conversation.self, from: data)
+                conv = Conversation(
+                    id: conv.id,
+                    directory: row[key],
+                    createdAt: Date(timeIntervalSince1970: Double(row[createdAt]) / 1000),
+                    updatedAt: Date(timeIntervalSince1970: Double(row[updatedAt]) / 1000),
+                    history: conv.history
+                )
+                if let idx = conversations.firstIndex(where: { $0.id == id }) {
+                    conversations[idx] = conv
+                }
+                return conv
+            }
+        } catch {
+            AppLogger.db.error("Failed to reload conversation \(id): \(error.localizedDescription)")
+        }
+        return nil
+    }
+    
     func deleteConversation(_ conversation: Conversation) {
         do {
             let db = try Connection(dbPath.path)

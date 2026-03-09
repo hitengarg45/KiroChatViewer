@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var showTimeline = false
     @State private var showPerformance = false
     @State private var showBackupConfirm = false
+    @State private var hasTriggeredBackup = false
     @StateObject private var backupManager = BackupManager.shared
     
     enum GroupSortOrder: String {
@@ -351,12 +352,16 @@ struct ContentView: View {
                 selectedConversation = updated
             }
             
-            // Auto-backup after load
-            if !db.conversations.isEmpty {
+            // Auto-backup after load (once per session)
+            if !db.conversations.isEmpty && !hasTriggeredBackup {
+                hasTriggeredBackup = true
                 DispatchQueue.global(qos: .utility).async {
                     BackupManager.shared.backupIfNeeded()
                 }
-                // Auto-generate titles
+            }
+            
+            // Auto-generate titles for any new conversations
+            if !db.conversations.isEmpty {
                 titles.startAutoGeneration(for: db.conversations)
             }
         }

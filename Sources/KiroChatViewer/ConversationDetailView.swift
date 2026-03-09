@@ -99,8 +99,10 @@ struct ConversationDetailView: View {
                     withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
                     isReloading = true
                     Task {
-                        await db._loadConversations()
-                        selectedConversation = db.conversations.first { $0.id == conversation.id }
+                        // Only reload the current conversation, not the full list
+                        if let updated = await db.reloadConversation(id: conversation.id) {
+                            selectedConversation = updated
+                        }
                         isReloading = false
                     }
                 } label: {
