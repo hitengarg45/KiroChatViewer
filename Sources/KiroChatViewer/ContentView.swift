@@ -298,7 +298,8 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            if let conv = selectedConversation {
+            if let selected = selectedConversation,
+               let conv = db.conversations.first(where: { $0.id == selected.id }) ?? selectedConversation {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
                     .environmentObject(titles)
