@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var showPerformance = false
     @State private var showBackupConfirm = false
     @State private var hasTriggeredBackup = false
+    @State private var showLiveChat = false
     @StateObject private var backupManager = BackupManager.shared
     
     enum GroupSortOrder: String {
@@ -202,6 +203,11 @@ struct ContentView: View {
             .background(themeManager.usesCustomColors ? themeManager.activeTheme.sidebar : Color.clear)
             .toolbar {
                 ToolbarItemGroup(placement: .automatic) {
+                    Button { showLiveChat = true } label: {
+                        Label("Live Chat", systemImage: "bolt.fill")
+                    }
+                    .help("Start a live chat with Kiro")
+                    
                     Button { showFolderPicker = true } label: {
                         Label("New Chat", systemImage: "plus.message")
                     }
@@ -298,7 +304,17 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            if let selected = selectedConversation,
+            if showLiveChat {
+                LiveChatView()
+                    .toolbar {
+                        ToolbarItem(placement: .automatic) {
+                            Button { showLiveChat = false } label: {
+                                Label("Back to Viewer", systemImage: "list.bullet")
+                            }
+                            .help("Return to conversation viewer")
+                        }
+                    }
+            } else if let selected = selectedConversation,
                let conv = db.conversations.first(where: { $0.id == selected.id }) ?? selectedConversation {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
