@@ -19,7 +19,6 @@ class ACPClient: ObservableObject {
     private var process: Process?
     private var stdinHandle: FileHandle?
     private var requestId = 0
-    private var buffer = ""
     
     private let eventSubject = PassthroughSubject<ACPEvent, Never>()
     var events: AnyPublisher<ACPEvent, Never> { eventSubject.eraseToAnyPublisher() }
@@ -33,11 +32,30 @@ class ACPClient: ObservableObject {
         ].first { FileManager.default.fileExists(atPath: $0) }
     }
     
+    private func log(_ msg: String) {
+        let line = "\(Date()): \(msg)\n"
+        AppLogger.db.info("\(msg)")
+        let logURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/KiroChatViewer/acp.log")
+        if let data = line.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logURL.path) {
+                if let handle = try? FileHandle(forWritingTo: logURL) {
+                    handle.seekToEndOfFile()
+                    handle.write(data)
+                    handle.closeFile()
+                }
+            } else {
+                try? data.write(to: logURL)
+            }
+        }
+    }
+    
     // MARK: - Connect
     
-    func connect(cwd: String, model: String = "qwen3-coder-480b") {
+    func connect(cwd: String) {
         guard let path = findKiroCli() else {
-            AppLogger.db.error("kiro-cli not found")
+            self.log("ACP: kiro-cli not found")
+            eventSubject.send(.error("kiro-cli not found"))
             return
         }
         
@@ -47,6 +65,8 @@ class ACPClient: ObservableObject {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = ["acp"]
+        // Enable debug logging
+        proc.environment = ProcessInfo.processInfo.environment
         
         let inPipe = Pipe()
         let outPipe = Pipe()
@@ -58,42 +78,46 @@ class ACPClient: ObservableObject {
         self.process = proc
         self.stdinHandle = inPipe.fileHandleForWriting
         
-        // Read stdout on background thread — line buffered
+        // Read stdout — read 1 byte at a time to avoid blocking on partial buffers
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let handle = outPipe.fileHandleForReading
-            var buf = Data()
+            let fh = outPipe.fileHandleForReading
+            var lineBuffer = Data()
+            
             while true {
-                let chunk = handle.availableData
-                if chunk.isEmpty { break }
-                buf.append(chunk)
+                let byte = fh.readData(ofLength: 1)
+                if byte.isEmpty { break } // EOF
                 
-                // Process complete lines
-                while let newline = buf.firstIndex(of: UInt8(ascii: "\n")) {
-                    let lineData = buf[buf.startIndex..<newline]
-                    buf = Data(buf[(newline + 1)...])
-                    
-                    guard let line = String(data: lineData, encoding: .utf8)?.trimmingCharacters(in: .whitespaces),
-                          !line.isEmpty else { continue }
-                    
-                    AppLogger.db.info("ACP RECV: \(String(line.prefix(200)))")
-                    
-                    guard let data = line.data(using: .utf8),
-                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-                    
+                if byte[byte.startIndex] == UInt8(ascii: "\n") {
+                    guard let line = String(data: lineBuffer, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                          !line.isEmpty,
+                          let jsonData = line.data(using: .utf8),
+                          let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+                    else {
+                        lineBuffer = Data()
+                        continue
+                    }
+                    lineBuffer = Data()
                     DispatchQueue.main.async { self?.processMessage(json) }
+                } else {
+                    lineBuffer.append(byte)
                 }
             }
-            AppLogger.db.info("ACP stdout closed")
+            self?.log("ACP: stdout reader exited")
         }
         
-        // Log stderr
-        DispatchQueue.global(qos: .utility).async {
-            let handle = errPipe.fileHandleForReading
+        // Read stderr
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             while true {
-                let data = handle.availableData
+                let data = errPipe.fileHandleForReading.readData(ofLength: 4096)
                 if data.isEmpty { break }
                 if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                    AppLogger.db.error("ACP STDERR: \(str.prefix(300))")
+                    AppLogger.db.error("ACP STDERR: \(str.prefix(500))")
+                    if str.contains("Parse error") || str.contains("missing field") {
+                        DispatchQueue.main.async {
+                            self?.eventSubject.send(.error(str.components(separatedBy: "\"error\":").last?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Parse error"))
+                        }
+                    }
                 }
             }
         }
@@ -102,68 +126,59 @@ class ACPClient: ObservableObject {
             DispatchQueue.main.async {
                 self?.state = .disconnected
                 self?.sessionId = nil
+                AppLogger.db.info("ACP: process terminated")
             }
         }
         
         do {
             try proc.run()
-            AppLogger.db.info("ACP process started")
+            self.log("ACP: process started, sending initialize")
             
-            // Step 1: Initialize
+            // Step 1: Initialize — session/new will be sent after init response
+            self.pendingCwd = cwd
             send([
                 "jsonrpc": "2.0",
                 "id": nextId(),
                 "method": "initialize",
                 "params": [
-                    "protocolVersion": "1",
+                    "protocolVersion": 1,
                     "clientCapabilities": [String: Any](),
                     "clientInfo": ["name": "KiroChatViewer", "version": "3.5.0"]
                 ] as [String: Any]
             ])
-            
-            // Step 2: Create session (sent immediately — responses are queued)
-            send([
-                "jsonrpc": "2.0",
-                "id": nextId(),
-                "method": "session/new",
-                "params": [
-                    "cwd": cwd,
-                    "mcpServers": [Any]()
-                ] as [String: Any]
-            ])
-            
         } catch {
-            AppLogger.db.error("Failed to start ACP: \(error.localizedDescription)")
+            self.log("ACP: failed to start: \(error.localizedDescription)")
             state = .disconnected
+            eventSubject.send(.error("Failed to start kiro-cli: \(error.localizedDescription)"))
         }
     }
+    
+    private var pendingCwd = ""
     
     // MARK: - Prompt
     
     func prompt(text: String) {
         guard let sid = sessionId else {
-            AppLogger.db.error("No session ID for prompt")
+            self.log("ACP: no session for prompt")
             return
         }
         state = .chatting
+        let promptId = nextId()
+        self.log("ACP: sending prompt id=\(promptId)")
         send([
             "jsonrpc": "2.0",
-            "id": nextId(),
-            "method": "prompt",
+            "id": promptId,
+            "method": "session/prompt",
             "params": [
                 "sessionId": sid,
-                "prompt": [["kind": "text", "data": text]]
+                "prompt": [["type": "text", "text": text]]
             ] as [String: Any]
         ])
     }
     
     func cancel() {
         guard let sid = sessionId else { return }
-        send([
-            "jsonrpc": "2.0",
-            "method": "session/cancel",
-            "params": ["sessionId": sid]
-        ])
+        send(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": sid]])
     }
     
     func disconnect() {
@@ -172,73 +187,121 @@ class ACPClient: ObservableObject {
         stdinHandle = nil
         state = .disconnected
         sessionId = nil
+        requestId = 0
     }
     
     // MARK: - Send
     
     private func send(_ msg: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: msg),
-              var str = String(data: data, encoding: .utf8) else { return }
+              var str = String(data: data, encoding: .utf8) else {
+            self.log("ACP: failed to serialize message")
+            return
+        }
         str += "\n"
-        stdinHandle?.write(str.data(using: .utf8)!)
-        AppLogger.db.info("ACP SEND: \(msg["method"] as? String ?? "?")")
+        guard let writeData = str.data(using: .utf8) else { return }
+        stdinHandle?.write(writeData)
+        self.log("ACP SEND: \(msg["method"] as? String ?? "?") id=\(msg["id"] as? Int ?? -1)")
     }
     
     // MARK: - Process Messages
     
     private func processMessage(_ json: [String: Any]) {
+        let method = json["method"] as? String
+        let id = json["id"] as? Int
+        
+        let hasResult = json["result"] != nil
+        let hasError = json["error"] != nil
+        self.log("ACP RECV: method=\(method ?? "nil") id=\(id ?? -1) result=\(hasResult) error=\(hasError)")
+        
         // Response with result
         if let result = json["result"] as? [String: Any] {
-            // Session new → has sessionId
+            
+            // Initialize response — has agentInfo
+            if result["agentInfo"] != nil {
+                self.log("ACP: initialized, sending session/new")
+                // Now create session
+                send([
+                    "jsonrpc": "2.0",
+                    "id": nextId(),
+                    "method": "session/new",
+                    "params": [
+                        "cwd": pendingCwd,
+                        "mcpServers": [Any]()
+                    ] as [String: Any]
+                ])
+                return
+            }
+            
+            // Session new response — has sessionId
             if let sid = result["sessionId"] as? String {
-                self.sessionId = sid
-                self.state = .ready
-                AppLogger.db.info("ACP session ready: \(sid)")
+                sessionId = sid
+                state = .ready
+                self.log("ACP: session ready \(sid)")
                 return
             }
-            // Initialize → has serverInfo or agentInfo
-            if result["serverInfo"] != nil || result["agentInfo"] != nil {
-                AppLogger.db.info("ACP initialized")
+            
+            // Prompt response — has stopReason (turn complete)
+            if let stopReason = result["stopReason"] as? String {
+                self.log("ACP: turn ended, reason=\(stopReason)")
+                state = .ready
+                eventSubject.send(.turnEnd)
                 return
             }
+            
+            self.log("ACP: unhandled result keys=\(Array(result.keys).prefix(5))")
+            return
         }
         
         // Error response
         if let error = json["error"] as? [String: Any] {
             let msg = error["message"] as? String ?? "Unknown error"
-            AppLogger.db.error("ACP error: \(msg)")
+            self.log("ACP ERROR: \(msg)")
             eventSubject.send(.error(msg))
+            if state == .chatting { state = .ready }
             return
         }
         
         // Notification — session/update
-        if let method = json["method"] as? String, method == "session/update",
+        if method == "session/update",
            let params = json["params"] as? [String: Any],
            let update = params["update"] as? [String: Any] {
             
-            let sessionUpdate = update["sessionUpdate"] as? String ?? update["kind"] as? String ?? ""
+            let sessionUpdate = update["sessionUpdate"] as? String ?? ""
+            log("ACP UPDATE: sessionUpdate=\(sessionUpdate) keys=\(Array(update.keys))")
             
             switch sessionUpdate {
-            case "agent_message_chunk", "AgentMessageChunk":
-                let text = update["text"] as? String
-                    ?? (update["content"] as? [String: Any])?["text"] as? String
-                    ?? ""
+            case "agent_message_chunk":
+                let content = update["content"] as? [String: Any]
+                let text = content?["text"] as? String ?? ""
+                log("ACP CHUNK: content=\(String(describing: content)) text='\(text.prefix(50))'")
                 if !text.isEmpty {
                     eventSubject.send(.chunk(text))
                 }
                 
-            case "tool_use", "ToolCall":
-                let name = update["name"] as? String ?? update["toolName"] as? String ?? "tool"
+            case "tool_call":
+                let name = update["title"] as? String ?? update["name"] as? String ?? "tool"
                 let status = update["status"] as? String ?? ""
                 eventSubject.send(.toolCall(name: name, status: status))
                 
-            case "end_turn", "TurnEnd":
-                state = .ready
-                eventSubject.send(.turnEnd)
+            case "tool_call_update":
+                let name = update["title"] as? String ?? "tool"
+                let status = update["status"] as? String ?? ""
+                eventSubject.send(.toolCall(name: name, status: status))
                 
             default:
-                AppLogger.db.info("ACP update: \(sessionUpdate)")
+                self.log("ACP: update type=\(sessionUpdate)")
             }
+            return
+        }
+        
+        // Other notifications (kiro extensions) — ignore silently
+        if method?.hasPrefix("_kiro") == true || method?.hasPrefix("_session") == true {
+            return
+        }
+        
+        if method != nil {
+            self.log("ACP: unhandled notification \(method!)")
         }
     }
 }

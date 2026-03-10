@@ -41,7 +41,7 @@ class LiveChatViewModel: ObservableObject {
     }
     
     func connect() {
-        client.connect(cwd: workingDirectory, model: currentModel)
+        client.connect(cwd: workingDirectory)
     }
     
     func send() {
