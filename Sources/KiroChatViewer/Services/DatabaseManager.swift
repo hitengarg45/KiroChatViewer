@@ -1,7 +1,7 @@
 import Foundation
 import SQLite
 
-class DatabaseManager: ObservableObject {
+class DatabaseManager: ObservableObject, DatabaseProviding {
     @Published var conversations: [Conversation] = []
     @Published var isLoading = false
     @Published var error: String?

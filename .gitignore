@@ -1,6 +1,23 @@
-.DS_Store
+# Build
 .build/
+DerivedData/
+
+# Xcode
 *.xcodeproj
 *.xcworkspace
+xcuserdata/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# App bundle (built artifact)
 KiroChatViewer.app/
+
+# Test DMGs
 Releases/KiroChatViewer-test.dmg
+
+# IDE
+.vscode/
+.idea/

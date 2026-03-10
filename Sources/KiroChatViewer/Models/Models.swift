@@ -402,3 +402,15 @@ struct Message: Identifiable, Hashable {
     static func == (lhs: Message, rhs: Message) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
+
+// MARK: - Live Chat Message
+
+
+struct LiveMessage: Identifiable {
+    let id = UUID()
+    let role: String // "user", "assistant", "tool"
+    var content: String
+    var toolName: String?
+    var toolStatus: String?
+    var isStreaming: Bool = false
+}

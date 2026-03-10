@@ -12,7 +12,7 @@ enum ACPState: Equatable {
     case disconnected, connecting, ready, chatting
 }
 
-class ACPClient: ObservableObject {
+class ACPClient: ObservableObject, ACPProviding {
     @Published var state: ACPState = .disconnected
     @Published var sessionId: String?
     
@@ -33,21 +33,7 @@ class ACPClient: ObservableObject {
     }
     
     private func log(_ msg: String) {
-        let line = "\(Date()): \(msg)\n"
         AppLogger.db.info("\(msg)")
-        let logURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/KiroChatViewer/acp.log")
-        if let data = line.data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: logURL.path) {
-                if let handle = try? FileHandle(forWritingTo: logURL) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    handle.closeFile()
-                }
-            } else {
-                try? data.write(to: logURL)
-            }
-        }
     }
     
     // MARK: - Connect
@@ -274,7 +260,6 @@ class ACPClient: ObservableObject {
             case "agent_message_chunk":
                 let content = update["content"] as? [String: Any]
                 let text = content?["text"] as? String ?? ""
-                log("ACP CHUNK: content=\(String(describing: content)) text='\(text.prefix(50))'")
                 if !text.isEmpty {
                     eventSubject.send(.chunk(text))
                 }
