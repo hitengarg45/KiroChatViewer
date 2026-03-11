@@ -45,8 +45,12 @@ class BookmarkManager: ObservableObject {
     }
     
     private func save() {
-        let data = try? JSONEncoder().encode(BookmarkData(folders: folders))
-        try? data?.write(to: fileURL)
+        let folders = self.folders
+        let url = self.fileURL
+        DispatchQueue.global(qos: .utility).async {
+            let data = try? JSONEncoder().encode(BookmarkData(folders: folders))
+            try? data?.write(to: url)
+        }
     }
     
     func createFolder(name: String) {

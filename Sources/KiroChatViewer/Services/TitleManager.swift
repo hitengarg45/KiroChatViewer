@@ -264,14 +264,22 @@ class TitleManager: ObservableObject {
     // MARK: - Persistence
     
     private func save() {
-        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard let data = try? JSONEncoder().encode(titles) else { return }
-        try? data.write(to: fileURL)
+        let titles = self.titles
+        let url = self.fileURL
+        DispatchQueue.global(qos: .utility).async {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard let data = try? JSONEncoder().encode(titles) else { return }
+            try? data.write(to: url)
+        }
     }
     
     private func savePinned() {
-        try? FileManager.default.createDirectory(at: pinnedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard let data = try? JSONEncoder().encode(pinnedConversations) else { return }
-        try? data.write(to: pinnedURL)
+        let pinned = self.pinnedConversations
+        let url = self.pinnedURL
+        DispatchQueue.global(qos: .utility).async {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard let data = try? JSONEncoder().encode(pinned) else { return }
+            try? data.write(to: url)
+        }
     }
 }
