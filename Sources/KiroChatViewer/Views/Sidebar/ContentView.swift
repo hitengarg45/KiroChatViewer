@@ -24,6 +24,8 @@ struct ContentView: View {
     @State private var hasTriggeredBackup = false
     @State private var showLiveChat = false
     @ObservedObject private var backupManager = BackupManager.shared
+    @State private var cachedFiltered: [Conversation] = []
+    @State private var cachedGrouped: [(directory: String, conversations: [Conversation])] = []
     
     enum GroupSortOrder: String {
         case name = "Name"
@@ -37,15 +39,13 @@ struct ContentView: View {
         case oldest = "Oldest"
     }
     
-    var filteredConversations: [Conversation] {
+    private func updateFilteredConversations() {
         var convs = db.conversations
         
-        // Filter by folder if selected
         if let folder = selectedFolder {
             convs = convs.filter { folder.conversationIds.contains($0.id) }
         }
         
-        // Filter by search
         if !searchText.isEmpty {
             convs = convs.filter { conv in
                 let displayTitle = titles.getTitle(for: conv.id) ?? conv.title
@@ -54,45 +54,37 @@ struct ContentView: View {
             }
         }
         
-        // Sort based on flat sort order
-        return convs.sorted { lhs, rhs in
+        cachedFiltered = convs.sorted { lhs, rhs in
             let lhsPinned = titles.isPinned(lhs.id)
             let rhsPinned = titles.isPinned(rhs.id)
-            if lhsPinned != rhsPinned {
-                return lhsPinned
-            }
+            if lhsPinned != rhsPinned { return lhsPinned }
             
             switch flatSortOrder {
             case .title:
                 let lhsTitle = titles.getTitle(for: lhs.id) ?? lhs.title
                 let rhsTitle = titles.getTitle(for: rhs.id) ?? rhs.title
                 return lhsTitle.localizedCaseInsensitiveCompare(rhsTitle) == .orderedAscending
-            case .latest:
-                return lhs.updatedAt > rhs.updatedAt
-            case .oldest:
-                return lhs.updatedAt < rhs.updatedAt
+            case .latest: return lhs.updatedAt > rhs.updatedAt
+            case .oldest: return lhs.updatedAt < rhs.updatedAt
             }
         }
-    }
-    
-    var groupedConversations: [(directory: String, conversations: [Conversation])] {
-        let grouped = Dictionary(grouping: filteredConversations) { $0.directory }
+        
+        // Update grouped view
+        let grouped = Dictionary(grouping: cachedFiltered) { $0.directory }
         let mapped = grouped.map { (directory: $0.key, conversations: $0.value.sorted { lhs, rhs in
             let lhsPinned = titles.isPinned(lhs.id)
             let rhsPinned = titles.isPinned(rhs.id)
-            if lhsPinned != rhsPinned {
-                return lhsPinned
-            }
+            if lhsPinned != rhsPinned { return lhsPinned }
             return lhs.updatedAt > rhs.updatedAt
         }) }
         
         switch groupSortOrder {
         case .name:
-            return mapped.sorted { $0.directory < $1.directory }
+            cachedGrouped = mapped.sorted { $0.directory < $1.directory }
         case .latestConversation:
-            return mapped.sorted { ($0.conversations.first?.updatedAt ?? .distantPast) > ($1.conversations.first?.updatedAt ?? .distantPast) }
+            cachedGrouped = mapped.sorted { ($0.conversations.first?.updatedAt ?? .distantPast) > ($1.conversations.first?.updatedAt ?? .distantPast) }
         case .oldestConversation:
-            return mapped.sorted { ($0.conversations.last?.updatedAt ?? .distantFuture) < ($1.conversations.last?.updatedAt ?? .distantFuture) }
+            cachedGrouped = mapped.sorted { ($0.conversations.last?.updatedAt ?? .distantFuture) < ($1.conversations.last?.updatedAt ?? .distantFuture) }
         }
     }
     
@@ -107,7 +99,7 @@ struct ContentView: View {
                 // Conversations list
                 if isGroupedByWorkspace {
                     List(selection: $selectedConversation) {
-                        ForEach(groupedConversations, id: \.directory) { group in
+                        ForEach(cachedGrouped, id: \.directory) { group in
                             Section {
                                 if expandedDirectories.contains(group.directory) {
                                     ForEach(group.conversations) { conv in
@@ -170,14 +162,14 @@ struct ContentView: View {
                         }
                     }
                     .overlay {
-                        if filteredConversations.isEmpty {
+                        if cachedFiltered.isEmpty {
                             emptyStateView
                         }
                     }
                     .searchable(text: $searchText, prompt: "Search conversations")
                     .padding(.top, 4)
                 } else {
-                    List(filteredConversations, selection: $selectedConversation) { conv in
+                    List(cachedFiltered, selection: $selectedConversation) { conv in
                         ConversationRow(
                             conversation: conv,
                             isSelected: selectedConversation?.id == conv.id,
@@ -191,7 +183,7 @@ struct ContentView: View {
                         .tag(conv)
                     }
                     .overlay {
-                        if filteredConversations.isEmpty {
+                        if cachedFiltered.isEmpty {
                             emptyStateView
                         }
                     }
@@ -363,6 +355,8 @@ struct ContentView: View {
             perf.record("Count", "\(db.conversations.count)")
             AppLogger.ui.info("Conversations updated: \(db.conversations.count) total")
             
+            updateFilteredConversations()
+            
             // Update selected conversation with fresh data
             if let selected = selectedConversation,
                let updated = db.conversations.first(where: { $0.id == selected.id }) {
@@ -382,6 +376,13 @@ struct ContentView: View {
                 titles.startAutoGeneration(for: db.conversations)
             }
         }
+        .onChange(of: searchText) { _ in updateFilteredConversations() }
+        .onChange(of: flatSortOrder) { _ in updateFilteredConversations() }
+        .onChange(of: groupSortOrder) { _ in updateFilteredConversations() }
+        .onChange(of: selectedFolder?.id) { _ in updateFilteredConversations() }
+        .onChange(of: titles.pinnedConversations) { _ in updateFilteredConversations() }
+        .onChange(of: titles.titles.count) { _ in updateFilteredConversations() }
+        .onChange(of: bookmarks.folders) { _ in updateFilteredConversations() }
         .alert("Error", isPresented: .constant(db.error != nil)) {
             Button("OK") { db.error = nil }
         } message: {
