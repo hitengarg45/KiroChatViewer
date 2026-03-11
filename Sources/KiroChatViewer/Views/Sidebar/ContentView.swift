@@ -7,6 +7,8 @@ struct ContentView: View {
     @StateObject private var perf = PerformanceMonitor()
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
+    @State private var debouncedSearchText = ""
+    @State private var searchDebounceTask: Task<Void, Never>?
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
     @ObservedObject private var themeManager = ThemeManager.shared
     @State private var rotationAngle: Double = 0
@@ -46,11 +48,11 @@ struct ContentView: View {
             convs = convs.filter { folder.conversationIds.contains($0.id) }
         }
         
-        if !searchText.isEmpty {
+        if !debouncedSearchText.isEmpty {
             convs = convs.filter { conv in
                 let displayTitle = titles.getTitle(for: conv.id) ?? conv.title
-                return displayTitle.localizedCaseInsensitiveContains(searchText) ||
-                conv.messages.contains { $0.content.localizedCaseInsensitiveContains(searchText) }
+                return displayTitle.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                conv.messages.contains { $0.content.localizedCaseInsensitiveContains(debouncedSearchText) }
             }
         }
         
@@ -376,7 +378,21 @@ struct ContentView: View {
                 titles.startAutoGeneration(for: db.conversations)
             }
         }
-        .onChange(of: searchText) { _ in updateFilteredConversations() }
+        .onChange(of: searchText) { newValue in
+            searchDebounceTask?.cancel()
+            if newValue.isEmpty {
+                // Clear immediately
+                debouncedSearchText = ""
+                updateFilteredConversations()
+            } else {
+                searchDebounceTask = Task {
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+                    guard !Task.isCancelled else { return }
+                    debouncedSearchText = newValue
+                    updateFilteredConversations()
+                }
+            }
+        }
         .onChange(of: flatSortOrder) { _ in updateFilteredConversations() }
         .onChange(of: groupSortOrder) { _ in updateFilteredConversations() }
         .onChange(of: selectedFolder?.id) { _ in updateFilteredConversations() }
