@@ -3,9 +3,13 @@ import MarkdownUI
 
 // MARK: - Message View
 
-struct MessageView: View {
+struct MessageView: View, Equatable {
     let message: Message
     @ObservedObject private var theme = ThemeManager.shared
+    
+    static func == (lhs: MessageView, rhs: MessageView) -> Bool {
+        lhs.message.id == rhs.message.id
+    }
     
     var body: some View {
         switch message.role {
