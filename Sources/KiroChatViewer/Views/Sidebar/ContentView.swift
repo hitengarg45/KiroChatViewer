@@ -317,7 +317,7 @@ struct ContentView: View {
                 ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                     .environmentObject(db)
                     .environmentObject(titles)
-                    .id("\(conv.id)-\(conv.updatedAt.timeIntervalSince1970)")
+                    .id(conv.id)
                     .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
             } else {
                 Text("Select a conversation")

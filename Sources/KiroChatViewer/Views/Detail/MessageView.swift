@@ -5,7 +5,6 @@ import MarkdownUI
 
 struct MessageView: View {
     let message: Message
-    @ObservedObject var mdCache: MarkdownCache
     @ObservedObject private var theme = ThemeManager.shared
     
     var body: some View {
@@ -27,7 +26,7 @@ struct MessageView: View {
                     Text("You").font(.headline)
                     Image(systemName: "person.circle.fill").foregroundStyle(.blue)
                 }
-                Markdown(mdCache.get("user-\(message.id)", content: message.content))
+                Markdown(message.content)
                     .markdownTheme(.kiro)
                     .textSelection(.enabled)
                     .padding()
@@ -45,7 +44,7 @@ struct MessageView: View {
                     Image(systemName: "sparkles").foregroundStyle(.purple)
                     Text("Kiro").font(.headline)
                 }
-                Markdown(mdCache.get("asst-\(message.id)", content: message.content))
+                Markdown(message.content)
                     .markdownTheme(.kiro)
                     .textSelection(.enabled)
                     .padding()
@@ -60,13 +59,12 @@ struct MessageView: View {
     private var toolView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 8) {
-                // Show assistant's explanatory text if present
                 if !message.content.isEmpty {
                     HStack {
                         Image(systemName: "sparkles").foregroundStyle(.purple)
                         Text("Kiro").font(.headline)
                     }
-                    Markdown(mdCache.get("tool-\(message.id)", content: message.content))
+                    Markdown(message.content)
                         .markdownTheme(.kiro)
                         .textSelection(.enabled)
                         .padding()
@@ -74,7 +72,6 @@ struct MessageView: View {
                         .cornerRadius(8)
                 }
                 
-                // Tool calls
                 let toolMode = ThemeManager.shared.toolDisplayMode
                 if toolMode != "hidden" {
                     ForEach(message.toolCalls) { call in

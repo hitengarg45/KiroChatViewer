@@ -10,7 +10,6 @@ struct ConversationDetailView: View {
     @State private var rotationAngle: Double = 0
     @State private var isReloading = false
     @EnvironmentObject var db: DatabaseManager
-    @StateObject private var mdCache = MarkdownCache()
     @ObservedObject private var theme = ThemeManager.shared
     @Binding var selectedConversation: Conversation?
     @EnvironmentObject var titles: TitleManager
@@ -21,70 +20,40 @@ struct ConversationDetailView: View {
     
     var body: some View {
         ZStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 28) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(displayTitle)
-                                .font(.title)
-                            Text(conversation.directory)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("Updated: \(conversation.updatedAt.formatted())")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        
-                        Divider()
-                        
-                        Color.clear.frame(height: 1).id("top")
-                        
-                        ForEach(conversation.messages) { message in
-                            MessageView(message: message, mdCache: mdCache)
-                        }
-                        
-                        Color.clear.frame(height: 1).id("bottom")
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    // Bottom anchor (visually at bottom due to flip)
+                    Color.clear.frame(height: 1)
+                        .scaleEffect(x: 1, y: -1)
+                    
+                    // Messages in reverse order — newest first in the flipped list
+                    let msgs = conversation.messages
+                    ForEach(Array(msgs.reversed().enumerated()), id: \.element.id) { _, message in
+                        MessageView(message: message)
+                            .scaleEffect(x: 1, y: -1)
                     }
-                    .padding(.bottom, 40)
-                }
-                .opacity(isReloading ? 0.3 : 1.0)
-                .onAppear {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
+                    
+                    // Header (visually at top due to flip)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(displayTitle)
+                            .font(.title)
+                        Text(conversation.directory)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Updated: \(conversation.updatedAt.formatted())")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                }
-                .onChange(of: conversation.id) { _ in
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    }
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    ContinueInTerminalButton { continueInTerminal() }
-                        .padding()
-                        .padding(.bottom, 52)
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    } label: {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.white, .purple)
-                            .shadow(radius: 4)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Scroll to bottom")
                     .padding()
+                    .scaleEffect(x: 1, y: -1)
                 }
+                .padding(.bottom, 40)
+            }
+            .scaleEffect(x: 1, y: -1) // Flip entire ScrollView
+            .opacity(isReloading ? 0.3 : 1.0)
+            .overlay(alignment: .bottomTrailing) {
+                ContinueInTerminalButton { continueInTerminal() }
+                    .padding()
             }
             
             if isReloading {
@@ -113,10 +82,7 @@ struct ConversationDetailView: View {
             }
             
             ToolbarItem(placement: .automatic) {
-                Button { 
-                    AppLogger.ui.info("Export button clicked")
-                    showExporter = true 
-                } label: {
+                Button { showExporter = true } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
                 .help("Export as Markdown")
@@ -133,7 +99,6 @@ struct ConversationDetailView: View {
                 AppLogger.ui.info("Export successful: \(url.path)")
                 exportSuccess = true
             case .failure(let error):
-                AppLogger.ui.error("Export failed: \(error.localizedDescription)")
                 exportError = error.localizedDescription
             }
         }
@@ -145,9 +110,7 @@ struct ConversationDetailView: View {
         .alert("Export Failed", isPresented: .constant(exportError != nil)) {
             Button("OK") { exportError = nil }
         } message: {
-            if let error = exportError {
-                Text(error)
-            }
+            if let error = exportError { Text(error) }
         }
     }
     
@@ -157,11 +120,9 @@ struct ConversationDetailView: View {
         let dbPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/kiro-cli/data.sqlite3").path
         
-        // Temp script: touch updated_at to make this session the latest, then resume
         let tmpScript = "/tmp/kiro_resume_\(sessionId.prefix(8)).sh"
         let script = """
         #!/bin/bash
-        # Make this session the most recent so --resume picks it
         sqlite3 '\(dbPath)' "UPDATE conversations_v2 SET updated_at = CAST(strftime('%s','now') * 1000 AS INTEGER) WHERE conversation_id = '\(sessionId)'"
         cd '\(dir)'
         rm -f '\(tmpScript)'
@@ -169,7 +130,6 @@ struct ConversationDetailView: View {
         """
         try? script.write(toFile: tmpScript, atomically: true, encoding: .utf8)
         
-        // Make executable and run in Terminal
         let chmod = Process()
         chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
         chmod.arguments = ["+x", tmpScript]
@@ -189,7 +149,6 @@ struct ConversationDetailView: View {
     }
     
     private func generateMarkdown() -> String {
-        AppLogger.ui.info("Generating markdown for conversation: \(conversation.id)")
         var md = "# \(displayTitle)\n\n"
         md += "**Directory:** \(conversation.directory)\n\n"
         md += "**Updated:** \(conversation.updatedAt.formatted())\n\n---\n\n"
@@ -208,8 +167,6 @@ struct ConversationDetailView: View {
                 md += "## Kiro\n\n\(message.content)\n\n"
             }
         }
-        AppLogger.ui.info("Markdown generated: \(md.count) characters, \(conversation.messages.count) messages")
         return md
     }
 }
-

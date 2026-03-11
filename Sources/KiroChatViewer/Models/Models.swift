@@ -56,8 +56,13 @@ struct Conversation: Identifiable, Hashable, Codable {
         self.history = history
         self.messageCount = Self.countMessages(from: history)
         self.title = Self.extractTitle(from: history)
-        // Invalidate stale cache entry (e.g. after reload)
-        MessageCache.shared.invalidate(id)
+        // Only invalidate if content actually changed
+        if let existing = MessageCache.shared.get(id) {
+            let newCount = Self.countMessages(from: history)
+            if newCount != existing.count {
+                MessageCache.shared.invalidate(id)
+            }
+        }
     }
     
     init(from decoder: Decoder) throws {
