@@ -97,8 +97,10 @@ struct ConversationDetailView: View {
                     withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
                     isReloading = true
                     Task {
-                        // Only reload the current conversation, not the full list
                         if let updated = await db.reloadConversation(id: conversation.id) {
+                            if let idx = db.conversations.firstIndex(where: { $0.id == updated.id }) {
+                                db.conversations[idx] = updated
+                            }
                             selectedConversation = updated
                         }
                         isReloading = false
