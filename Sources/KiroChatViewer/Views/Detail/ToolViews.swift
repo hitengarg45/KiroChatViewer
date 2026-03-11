@@ -2,6 +2,28 @@ import SwiftUI
 import UniformTypeIdentifiers
 import MarkdownUI
 
+// MARK: - Terminal Color Palette (static, no per-render parsing)
+
+private enum TerminalPalette {
+    static let itermBg = Color(hex: "#1E1E2E")
+    static let itermFg = Color(hex: "#CDD6F4")
+    static let itermPrompt = Color(hex: "#89B4FA")
+    static let warpBg = Color(hex: "#16131F")
+    static let warpFg = Color(hex: "#B4A5FF")
+    static let warpPrompt = Color(hex: "#7C5BF0")
+    static let hyperFg = Color(hex: "#50FA7B")
+    static let terminalPrompt = Color(hex: "#2E7D32")
+    
+    static func colors(for style: String) -> (bg: Color, fg: Color, prompt: Color) {
+        switch style {
+        case "iterm": return (itermBg, itermFg, itermPrompt)
+        case "warp": return (warpBg, warpFg, warpPrompt)
+        case "hyper": return (.black, hyperFg, hyperFg)
+        default: return (Color(white: 0.95), .black, terminalPrompt)
+        }
+    }
+}
+
 // MARK: - Tool Call View
 
 struct ToolCallView: View {
@@ -18,7 +40,6 @@ struct ToolCallView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Tool header
             HStack(spacing: 6) {
                 if displayMode == "collapsible" {
                     Button {
@@ -80,6 +101,9 @@ struct ToolCallView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.orange.opacity(0.2), lineWidth: 1)
         )
+        .onChange(of: displayMode) { newMode in
+            isCollapsed = (newMode == "collapsible")
+        }
     }
 }
 
@@ -88,55 +112,36 @@ struct ToolCallView: View {
 struct BashToolView: View {
     let call: ToolCall
     @Binding var resultExpanded: Bool
+    @ObservedObject private var theme = ThemeManager.shared
     
     var command: String { call.args["command"] as? String ?? "" }
     var workingDir: String? { call.args["working_dir"] as? String ?? call.args["workingDir"] as? String }
     
-    private var terminalColors: (bg: Color, fg: Color) {
-        switch ThemeManager.shared.terminalStyle {
-        case "iterm": return (Color(hex: "#1E1E2E"), Color(hex: "#CDD6F4"))
-        case "warp": return (Color(hex: "#16131F"), Color(hex: "#B4A5FF"))
-        case "hyper": return (.black, Color(hex: "#50FA7B"))
-        default: return (Color(white: 0.95), .black) // macOS Terminal
-        }
-    }
-    
-    private var promptColor: Color {
-        switch ThemeManager.shared.terminalStyle {
-        case "iterm": return Color(hex: "#89B4FA")
-        case "warp": return Color(hex: "#7C5BF0")
-        case "hyper": return Color(hex: "#50FA7B")
-        default: return Color(hex: "#2E7D32")
-        }
-    }
-    
     var body: some View {
-        let colors = terminalColors
+        let palette = TerminalPalette.colors(for: theme.terminalStyle)
         VStack(alignment: .leading, spacing: 6) {
             if let dir = workingDir {
                 Text(dir)
                     .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(promptColor.opacity(0.7))
+                    .foregroundStyle(palette.prompt.opacity(0.7))
             }
             
             HStack(alignment: .top, spacing: 6) {
                 Text("$")
                     .font(.system(.caption, design: .monospaced, weight: .bold))
-                    .foregroundStyle(promptColor)
+                    .foregroundStyle(palette.prompt)
                 Text(command)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(colors.bg)
-            .foregroundStyle(colors.fg)
+            .background(palette.bg)
+            .foregroundStyle(palette.fg)
             .cornerRadius(6)
             .overlay(
-                ThemeManager.shared.terminalStyle == "warp" ?
-                    RoundedRectangle(cornerRadius: 6).stroke(Color(hex: "#7C5BF0").opacity(0.3), lineWidth: 1) : nil
+                theme.terminalStyle == "warp" ?
+                    RoundedRectangle(cornerRadius: 6).stroke(TerminalPalette.warpPrompt.opacity(0.3), lineWidth: 1) : nil
             )
             
             ToolResultView(call: call, resultExpanded: $resultExpanded)
@@ -157,7 +162,6 @@ struct FsWriteToolView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // File path
             HStack(spacing: 4) {
                 Image(systemName: "doc.text").font(.caption2).foregroundStyle(.blue)
                 Text(path).font(.system(.caption, design: .monospaced)).foregroundStyle(.blue)
@@ -167,17 +171,14 @@ struct FsWriteToolView: View {
             }
             
             if command == "str_replace" && !oldStr.isEmpty {
-                // Diff view
                 DiffView(oldText: oldStr, newText: newStr)
             } else if command == "create", let content = call.args["file_text"] as? String {
                 ScrollView(.vertical, showsIndicators: true) {
                     Text(content)
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
                         .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .frame(maxHeight: 200)
                 .background(Color.green.opacity(0.05))
@@ -196,25 +197,17 @@ struct FsWriteToolView: View {
 struct DiffView: View {
     let oldText: String
     let newText: String
+    @ObservedObject private var theme = ThemeManager.shared
     
     private var oldLines: [String] { oldText.components(separatedBy: "\n") }
     private var newLines: [String] { newText.components(separatedBy: "\n") }
     
-    private var diffLines: [(type: String, text: String)] {
-        let oldSet = Set(oldLines)
-        let newSet = Set(newLines)
-        var result: [(String, String)] = []
-        for line in oldLines {
-            result.append((newSet.contains(line) ? "context" : "removed", line))
-        }
-        for line in newLines where !oldSet.contains(line) {
-            result.append(("added", line))
-        }
-        return result
+    private var diffResult: [DiffLine] {
+        DiffComputer.compute(old: oldLines, new: newLines)
     }
     
     var body: some View {
-        if ThemeManager.shared.diffStyle == "sideBySide" {
+        if theme.diffStyle == "sideBySide" {
             sideBySideView
         } else {
             inlineView
@@ -224,9 +217,8 @@ struct DiffView: View {
     private var inlineView: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(diffLines.enumerated()), id: \.offset) { _, line in
-                    DiffLineView(prefix: line.type == "removed" ? "−" : line.type == "added" ? "+" : " ",
-                                 text: line.text, type: line.type)
+                ForEach(diffResult) { line in
+                    DiffLineView(prefix: line.prefix, text: line.text, type: line.type)
                 }
             }
         }
@@ -236,37 +228,97 @@ struct DiffView: View {
     }
     
     private var sideBySideView: some View {
-        HStack(alignment: .top, spacing: 1) {
-            // Old side
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 0) {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 1) {
                     Text("Old").font(.system(size: 10, weight: .bold)).padding(4).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.red.opacity(0.05))
-                    ForEach(Array(oldLines.enumerated()), id: \.offset) { _, line in
-                        let isRemoved = !Set(newLines).contains(line)
-                        DiffLineView(prefix: isRemoved ? "−" : " ", text: line, type: isRemoved ? "removed" : "context")
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .background(Color(.textBackgroundColor).opacity(0.5))
-            
-            // New side
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 0) {
                     Text("New").font(.system(size: 10, weight: .bold)).padding(4).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.green.opacity(0.05))
-                    ForEach(Array(newLines.enumerated()), id: \.offset) { _, line in
-                        let isAdded = !Set(oldLines).contains(line)
-                        DiffLineView(prefix: isAdded ? "+" : " ", text: line, type: isAdded ? "added" : "context")
+                }
+                ForEach(diffResult) { line in
+                    HStack(spacing: 1) {
+                        // Left column
+                        Group {
+                            if line.type == "removed" || line.type == "context" {
+                                DiffLineView(prefix: line.type == "removed" ? "−" : " ", text: line.text, type: line.type)
+                            } else {
+                                Color.clear.frame(height: 18)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        // Right column
+                        Group {
+                            if line.type == "added" || line.type == "context" {
+                                DiffLineView(prefix: line.type == "added" ? "+" : " ", text: line.text, type: line.type)
+                            } else {
+                                Color.clear.frame(height: 18)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .background(Color(.textBackgroundColor).opacity(0.5))
         }
         .frame(maxHeight: 250)
         .cornerRadius(6)
+    }
+}
+
+// MARK: - LCS-based Diff
+
+struct DiffLine: Identifiable {
+    let id = UUID()
+    let type: String // "context", "added", "removed"
+    let text: String
+    var prefix: String {
+        switch type {
+        case "removed": return "−"
+        case "added": return "+"
+        default: return " "
+        }
+    }
+}
+
+private enum DiffComputer {
+    static func compute(old: [String], new: [String]) -> [DiffLine] {
+        let lcs = longestCommonSubsequence(old, new)
+        var result: [DiffLine] = []
+        var oi = 0, ni = 0, li = 0
+        
+        while oi < old.count || ni < new.count {
+            if li < lcs.count && oi < old.count && old[oi] == lcs[li]
+                && ni < new.count && new[ni] == lcs[li] {
+                result.append(DiffLine(type: "context", text: lcs[li]))
+                oi += 1; ni += 1; li += 1
+            } else if oi < old.count && (li >= lcs.count || old[oi] != lcs[li]) {
+                result.append(DiffLine(type: "removed", text: old[oi]))
+                oi += 1
+            } else if ni < new.count && (li >= lcs.count || new[ni] != lcs[li]) {
+                result.append(DiffLine(type: "added", text: new[ni]))
+                ni += 1
+            }
+        }
+        return result
+    }
+    
+    private static func longestCommonSubsequence(_ a: [String], _ b: [String]) -> [String] {
+        let m = a.count, n = b.count
+        guard m > 0 && n > 0 else { return [] }
+        var dp = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
+        for i in 1...m {
+            for j in 1...n {
+                dp[i][j] = a[i-1] == b[j-1] ? dp[i-1][j-1] + 1 : max(dp[i-1][j], dp[i][j-1])
+            }
+        }
+        var result: [String] = []
+        var i = m, j = n
+        while i > 0 && j > 0 {
+            if a[i-1] == b[j-1] { result.append(a[i-1]); i -= 1; j -= 1 }
+            else if dp[i-1][j] > dp[i][j-1] { i -= 1 }
+            else { j -= 1 }
+        }
+        return result.reversed()
     }
 }
 
@@ -281,8 +333,6 @@ struct DiffLineView: View {
             Text(text.isEmpty ? " " : text)
                 .font(.system(.caption, design: .monospaced))
                 .textSelection(.enabled)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 1)
@@ -472,23 +522,23 @@ struct GenericToolArgsView: View {
     @Binding var resultExpanded: Bool
     
     var body: some View {
-        if !call.args.isEmpty {
-            Text("Arguments").font(.caption).foregroundStyle(.secondary)
-            ScrollView(.vertical, showsIndicators: true) {
-                Text(call.fullArgsDescription)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            if !call.args.isEmpty {
+                Text("Arguments").font(.caption).foregroundStyle(.secondary)
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(call.fullArgsDescription)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .frame(maxHeight: 150)
+                .background(Color(.textBackgroundColor).opacity(0.5))
+                .cornerRadius(6)
             }
-            .frame(maxHeight: 150)
-            .background(Color(.textBackgroundColor).opacity(0.5))
-            .cornerRadius(6)
+            
+            ToolResultView(call: call, resultExpanded: $resultExpanded)
         }
-        
-        ToolResultView(call: call, resultExpanded: $resultExpanded)
     }
 }
 
@@ -515,10 +565,8 @@ struct ToolResultView: View {
                 Text(result.content)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
                     .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(maxHeight: resultExpanded ? 600 : 120)
             .background(Color(.textBackgroundColor).opacity(0.5))
@@ -566,6 +614,9 @@ struct TextDocument: FileDocument {
     init(text: String) { self.text = text }
     init(configuration: ReadConfiguration) throws { text = "" }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: text.data(using: .utf8)!)
+        guard let data = text.data(using: .utf8) else {
+            throw CocoaError(.fileWriteInapplicableStringEncoding)
+        }
+        return FileWrapper(regularFileWithContents: data)
     }
 }
