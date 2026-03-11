@@ -164,7 +164,9 @@ struct ContentView: View {
                         }
                     }
                     .overlay {
-                        if cachedFiltered.isEmpty {
+                        if db.isLoading && cachedFiltered.isEmpty {
+                            loadingView
+                        } else if cachedFiltered.isEmpty {
                             emptyStateView
                         }
                     }
@@ -185,7 +187,9 @@ struct ContentView: View {
                         .tag(conv)
                     }
                     .overlay {
-                        if cachedFiltered.isEmpty {
+                        if db.isLoading && cachedFiltered.isEmpty {
+                            loadingView
+                        } else if cachedFiltered.isEmpty {
                             emptyStateView
                         }
                     }
@@ -464,6 +468,16 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+    
+    private var loadingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Loading conversations...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var folderSection: some View {
