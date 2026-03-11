@@ -6,7 +6,7 @@ import MarkdownUI
 struct MessageView: View {
     let message: Message
     @ObservedObject var mdCache: MarkdownCache
-    @StateObject private var theme = ThemeManager.shared
+    @ObservedObject private var theme = ThemeManager.shared
     
     var body: some View {
         switch message.role {

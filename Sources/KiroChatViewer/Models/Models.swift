@@ -1,11 +1,47 @@
 import Foundation
 
+// Thread-safe cache for lazily parsed messages.
+// Avoids re-parsing on every access while keeping Conversation as a value type.
+private final class MessageCache {
+    static let shared = MessageCache()
+    private var cache: [String: [Message]] = [:]
+    private let lock = NSLock()
+    
+    func get(_ id: String) -> [Message]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache[id]
+    }
+    
+    func set(_ id: String, messages: [Message]) {
+        lock.lock()
+        defer { lock.unlock() }
+        cache[id] = messages
+    }
+    
+    func invalidate(_ id: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeValue(forKey: id)
+    }
+}
+
 struct Conversation: Identifiable, Hashable, Codable {
     let id: String
     let directory: String
     let createdAt: Date
     let updatedAt: Date
     let history: [[MessageWrapper]]
+    let title: String
+    let messageCount: Int
+    
+    /// Lazily parsed messages — only computed on first access, then cached.
+    var messages: [Message] {
+        if let cached = MessageCache.shared.get(id) { return cached }
+        let parsed = Self.parseMessages(from: history)
+        MessageCache.shared.set(id, messages: parsed)
+        return parsed
+    }
     
     enum CodingKeys: String, CodingKey {
         case id = "conversation_id"
@@ -18,6 +54,10 @@ struct Conversation: Identifiable, Hashable, Codable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.history = history
+        self.messageCount = Self.countMessages(from: history)
+        self.title = Self.extractTitle(from: history)
+        // Invalidate stale cache entry (e.g. after reload)
+        MessageCache.shared.invalidate(id)
     }
     
     init(from decoder: Decoder) throws {
@@ -35,9 +75,37 @@ struct Conversation: Identifiable, Hashable, Codable {
         directory = ""
         createdAt = Date()
         updatedAt = Date()
+        self.messageCount = Self.countMessages(from: history)
+        self.title = Self.extractTitle(from: history)
     }
     
-    var messages: [Message] {
+    /// Lightweight title extraction — only looks at the first user prompt, no full parse needed.
+    private static func extractTitle(from history: [[MessageWrapper]]) -> String {
+        for pair in history {
+            for wrapper in pair {
+                if let prompt = wrapper.prompt {
+                    return String(prompt.prefix(60)).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        }
+        return "Untitled"
+    }
+    
+    /// Lightweight count — counts non-tool-result wrappers without allocating Message objects.
+    private static func countMessages(from history: [[MessageWrapper]]) -> Int {
+        var count = 0
+        for pair in history {
+            for wrapper in pair {
+                if wrapper.toolUseResults != nil { continue }
+                if wrapper.prompt != nil || wrapper.toolUse != nil || wrapper.responseText != nil {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+    
+    private static func parseMessages(from history: [[MessageWrapper]]) -> [Message] {
         // First pass: collect all tool results by tool_use_id
         var allToolResults: [String: ToolResult] = [:]
         for pair in history {
@@ -70,10 +138,6 @@ struct Conversation: Identifiable, Hashable, Codable {
             }
         }
         return result
-    }
-    
-    var title: String {
-        messages.first?.content.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines) ?? "Untitled"
     }
     
     static func == (lhs: Conversation, rhs: Conversation) -> Bool { lhs.id == rhs.id }

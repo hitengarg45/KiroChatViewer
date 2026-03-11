@@ -31,7 +31,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 // MARK: - Settings Shell
 
 struct SettingsView: View {
-    @StateObject private var theme = ThemeManager.shared
+    @ObservedObject private var theme = ThemeManager.shared
     @State private var selectedTab: SettingsTab = .about
     
     var body: some View {

@@ -11,7 +11,7 @@ struct ConversationDetailView: View {
     @State private var isReloading = false
     @EnvironmentObject var db: DatabaseManager
     @StateObject private var mdCache = MarkdownCache()
-    @StateObject private var theme = ThemeManager.shared
+    @ObservedObject private var theme = ThemeManager.shared
     @Binding var selectedConversation: Conversation?
     @EnvironmentObject var titles: TitleManager
     

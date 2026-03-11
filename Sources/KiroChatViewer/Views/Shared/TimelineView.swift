@@ -99,7 +99,7 @@ struct TimelineEntry: View {
                 }
                 .foregroundStyle(.secondary)
                 
-                Text("\(conversation.messages.count) message\(conversation.messages.count == 1 ? "" : "s")")
+                Text("\(conversation.messageCount) message\(conversation.messageCount == 1 ? "" : "s")")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

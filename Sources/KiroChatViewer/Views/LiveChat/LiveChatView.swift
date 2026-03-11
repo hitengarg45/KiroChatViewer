@@ -3,7 +3,7 @@ import MarkdownUI
 
 struct LiveChatView: View {
     @StateObject private var vm = LiveChatViewModel()
-    @StateObject private var theme = ThemeManager.shared
+    @ObservedObject private var theme = ThemeManager.shared
     @FocusState private var inputFocused: Bool
     
     var body: some View {

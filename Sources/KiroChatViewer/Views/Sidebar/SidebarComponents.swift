@@ -162,7 +162,7 @@ struct ConversationRow: View {
                             .fontWeight(titles.isPinned(conversation.id) ? .semibold : .regular)
                     }
                     HStack {
-                        Text("\(conversation.messages.count) msg\(conversation.messages.count == 1 ? "" : "s")")
+                        Text("\(conversation.messageCount) msg\(conversation.messageCount == 1 ? "" : "s")")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                         Spacer()

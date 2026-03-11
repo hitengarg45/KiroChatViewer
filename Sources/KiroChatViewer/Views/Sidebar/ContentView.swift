@@ -8,7 +8,7 @@ struct ContentView: View {
     @State private var selectedConversation: Conversation?
     @State private var searchText = ""
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
-    @StateObject private var themeManager = ThemeManager.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
     @State private var rotationAngle: Double = 0
     @State private var selectedFolder: BookmarkFolder?
     @State private var showNewFolderSheet = false
@@ -23,7 +23,7 @@ struct ContentView: View {
     @State private var showBackupConfirm = false
     @State private var hasTriggeredBackup = false
     @State private var showLiveChat = false
-    @StateObject private var backupManager = BackupManager.shared
+    @ObservedObject private var backupManager = BackupManager.shared
     
     enum GroupSortOrder: String {
         case name = "Name"

@@ -133,7 +133,7 @@ struct AboutSettings: View {
 // MARK: - Appearance
 
 struct AppearanceSettings: View {
-    @StateObject private var theme = ThemeManager.shared
+    @ObservedObject private var theme = ThemeManager.shared
     @State private var showNewTheme = false
     @State private var editingTheme: AppTheme?
     @State private var showResetConfirm = false
@@ -563,7 +563,7 @@ struct ConversationSettings: View {
 // MARK: - Backup
 
 struct BackupSettings: View {
-    @StateObject private var backupManager = BackupManager.shared
+    @ObservedObject private var backupManager = BackupManager.shared
     
     var body: some View {
         VStack(spacing: 12) {
