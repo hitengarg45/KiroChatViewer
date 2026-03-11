@@ -30,8 +30,38 @@ class TitleManager: ObservableObject {
     private var useAgent = true
     
     init() {
-        load()
-        ensureAgentExists()
+        Task.detached(priority: .utility) { [self] in
+            let (loadedTitles, loadedPinned) = Self.loadFromDisk(
+                fileURL: self.fileURL, pinnedURL: self.pinnedURL
+            )
+            self.ensureAgentExists()
+            await MainActor.run {
+                self.titles = loadedTitles
+                self.pinnedConversations = loadedPinned
+            }
+        }
+    }
+    
+    private static func loadFromDisk(fileURL: URL, pinnedURL: URL) -> ([String: TitleEntry], Set<String>) {
+        var titles: [String: TitleEntry] = [:]
+        var pinned: Set<String> = []
+        
+        if FileManager.default.fileExists(atPath: fileURL.path),
+           let data = try? Data(contentsOf: fileURL) {
+            if let entries = try? JSONDecoder().decode([String: TitleEntry].self, from: data) {
+                titles = entries
+            } else if let old = try? JSONDecoder().decode([String: String].self, from: data) {
+                titles = old.mapValues { TitleEntry(title: $0, source: "manual", generatedAt: nil) }
+            }
+        }
+        
+        if FileManager.default.fileExists(atPath: pinnedURL.path),
+           let data = try? Data(contentsOf: pinnedURL),
+           let decoded = try? JSONDecoder().decode(Set<String>.self, from: data) {
+            pinned = decoded
+        }
+        
+        return (titles, pinned)
     }
     
     // MARK: - Title Access
@@ -211,24 +241,6 @@ class TitleManager: ObservableObject {
     }
     
     // MARK: - Persistence
-    
-    private func load() {
-        if FileManager.default.fileExists(atPath: fileURL.path),
-           let data = try? Data(contentsOf: fileURL) {
-            if let entries = try? JSONDecoder().decode([String: TitleEntry].self, from: data) {
-                titles = entries
-            } else if let old = try? JSONDecoder().decode([String: String].self, from: data) {
-                titles = old.mapValues { TitleEntry(title: $0, source: "manual", generatedAt: nil) }
-                save()
-            }
-        }
-        
-        if FileManager.default.fileExists(atPath: pinnedURL.path),
-           let data = try? Data(contentsOf: pinnedURL),
-           let pinned = try? JSONDecoder().decode(Set<String>.self, from: data) {
-            pinnedConversations = pinned
-        }
-    }
     
     private func save() {
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)

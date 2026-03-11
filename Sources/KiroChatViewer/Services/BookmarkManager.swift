@@ -23,16 +23,25 @@ class BookmarkManager: ObservableObject {
         return dir.appendingPathComponent("bookmarks.json")
     }()
     
-    init() { load() }
+    init() {
+        Task.detached(priority: .utility) { [self] in
+            let loaded = Self.loadFromDisk(fileURL: self.fileURL)
+            await MainActor.run {
+                self.folders = loaded
+            }
+        }
+    }
     
-    private func load() {
+    private static func loadFromDisk(fileURL: URL) -> [BookmarkFolder] {
         guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode(BookmarkData.self, from: data) else { return }
-        folders = decoded.folders
-        // Ensure starred always exists
+              let decoded = try? JSONDecoder().decode(BookmarkData.self, from: data) else {
+            return [.starred]
+        }
+        var folders = decoded.folders
         if !folders.contains(where: { $0.id == "starred" }) {
             folders.insert(.starred, at: 0)
         }
+        return folders
     }
     
     private func save() {
