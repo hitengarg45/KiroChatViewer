@@ -121,30 +121,51 @@ class TitleManager: ObservableObject {
     
     func startAutoGeneration(for conversations: [Conversation]) {
         guard autoGenerateTitles else { return }
+        // Skip if already running
+        guard !isGenerating else { return }
         generationTask?.cancel()
         
+        // conversations already sorted by updatedAt from DatabaseManager
         let pending = Array(conversations
-            .sorted { $0.updatedAt > $1.updatedAt }
             .filter { !self.hasTitle(for: $0.id) }
             .prefix(self.maxPerLaunch))
         
         guard !pending.isEmpty else { return }
-        let totalPending = conversations.filter { !self.hasTitle(for: $0.id) }.count
-        AppLogger.db.info("Title generation: \(pending.count) of \(totalPending) pending (max \(self.maxPerLaunch) per launch)")
+        AppLogger.db.info("Title generation: \(pending.count) pending (max \(self.maxPerLaunch) per launch)")
         
+        let batchSize = 3
         generationTask = Task {
             await MainActor.run { isGenerating = true }
+            var batchBuffer: [(String, TitleEntry)] = []
+            
             for conv in pending {
                 if Task.isCancelled { break }
                 await MainActor.run { generatingId = conv.id }
                 
                 if let title = await generateTitle(for: conv) {
-                    await MainActor.run {
-                        titles[conv.id] = TitleEntry(title: title, source: "auto", generatedAt: Date())
-                        save()
+                    batchBuffer.append((conv.id, TitleEntry(title: title, source: "auto", generatedAt: Date())))
+                    
+                    // Publish in batches
+                    if batchBuffer.count >= batchSize {
+                        let batch = batchBuffer
+                        batchBuffer = []
+                        await MainActor.run {
+                            for (id, entry) in batch { titles[id] = entry }
+                            save()
+                        }
                     }
                 }
             }
+            
+            // Flush remaining
+            if !batchBuffer.isEmpty {
+                let batch = batchBuffer
+                await MainActor.run {
+                    for (id, entry) in batch { titles[id] = entry }
+                    save()
+                }
+            }
+            
             await MainActor.run {
                 isGenerating = false
                 generatingId = nil
