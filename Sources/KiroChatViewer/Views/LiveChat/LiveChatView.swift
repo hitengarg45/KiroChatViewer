@@ -8,9 +8,7 @@ struct LiveChatView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
             liveChatToolbar
-            
             Divider()
             
             if !vm.isConnected && vm.client.state == .disconnected {
@@ -24,25 +22,8 @@ struct LiveChatView: View {
                     Spacer()
                 }
             } else {
-                // Messages
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 20) {
-                            ForEach(vm.messages) { msg in
-                                liveChatMessage(msg)
-                            }
-                            Color.clear.frame(height: 1).id("bottom")
-                        }
-                        .padding()
-                    }
-                    .onChange(of: vm.messages.count) { _ in
-                        withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
-                    }
-                }
-                
+                chatArea
                 Divider()
-                
-                // Input
                 inputBar
             }
         }
@@ -52,6 +33,25 @@ struct LiveChatView: View {
         } message: {
             Text(vm.error ?? "")
         }
+    }
+    
+    // MARK: - Chat Area (Reversed ScrollView)
+    
+    private var chatArea: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                // Newest anchor (visual bottom)
+                Color.clear.frame(height: 1)
+                    .scaleEffect(x: 1, y: -1)
+                
+                ForEach(vm.messages.reversed()) { msg in
+                    LiveChatMessageView(message: msg)
+                        .scaleEffect(x: 1, y: -1)
+                }
+            }
+            .padding()
+        }
+        .scaleEffect(x: 1, y: -1)
     }
     
     // MARK: - Toolbar
@@ -69,12 +69,10 @@ struct LiveChatView: View {
             Spacer()
             
             if vm.isConnected {
-                // Model picker
                 Menu {
-                    Button("qwen3-coder-480b (0.01x)") { vm.currentModel = "qwen3-coder-480b" }
-                    Button("claude-haiku-4.5 (0.40x)") { vm.currentModel = "claude-haiku-4.5" }
-                    Button("claude-sonnet-4 (1.30x)") { vm.currentModel = "claude-sonnet-4" }
-                    Button("claude-sonnet-4.5 (1.30x)") { vm.currentModel = "claude-sonnet-4.5" }
+                    ForEach(Self.availableModels, id: \.0) { id, label in
+                        Button(label) { vm.currentModel = id }
+                    }
                 } label: {
                     Label(vm.currentModel, systemImage: "cpu")
                         .font(.caption)
@@ -149,71 +147,6 @@ struct LiveChatView: View {
         .padding()
     }
     
-    // MARK: - Message
-    
-    @ViewBuilder
-    private func liveChatMessage(_ msg: LiveMessage) -> some View {
-        switch msg.role {
-        case "user":
-            HStack {
-                Spacer(minLength: 60)
-                VStack(alignment: .trailing, spacing: 4) {
-                    HStack {
-                        Text("You").font(.caption).fontWeight(.medium)
-                        Image(systemName: "person.circle.fill").foregroundStyle(.blue).font(.caption)
-                    }
-                    Text(msg.content)
-                        .textSelection(.enabled)
-                        .padding(10)
-                        .background(theme.usesCustomColors ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
-                        .cornerRadius(8)
-                }
-            }
-            
-        case "tool":
-            HStack(spacing: 6) {
-                Image(systemName: "wrench.and.screwdriver.fill").foregroundStyle(.orange).font(.caption)
-                Text(msg.toolName ?? "tool").font(.system(.caption, design: .monospaced)).foregroundStyle(.orange)
-                if let status = msg.toolStatus {
-                    Text(status).font(.caption2).foregroundStyle(.secondary)
-                }
-            }
-            .padding(6)
-            .background(Color.orange.opacity(0.05))
-            .cornerRadius(6)
-            
-        default: // assistant
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "sparkles").foregroundStyle(.purple).font(.caption)
-                        Text("Kiro").font(.caption).fontWeight(.medium)
-                        if msg.isStreaming {
-                            ProgressView().scaleEffect(0.4)
-                        }
-                    }
-                    if msg.content.isEmpty && msg.isStreaming {
-                        HStack(spacing: 4) {
-                            ForEach(0..<3) { i in
-                                Circle().fill(.secondary).frame(width: 6, height: 6)
-                                    .opacity(0.5)
-                            }
-                        }
-                        .padding(10)
-                    } else {
-                        Markdown(msg.content)
-                            .markdownTheme(.kiro)
-                            .textSelection(.enabled)
-                            .padding(10)
-                            .background(theme.usesCustomColors ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
-                            .cornerRadius(8)
-                    }
-                }
-                Spacer()
-            }
-        }
-    }
-    
     // MARK: - Input Bar
     
     private var inputBar: some View {
@@ -251,5 +184,123 @@ struct LiveChatView: View {
             }
         }
         .padding(10)
+    }
+    
+    // MARK: - Models
+    
+    static let availableModels: [(String, String)] = [
+        ("qwen3-coder-480b", "Qwen3 Coder 480B (0.01x)"),
+        ("glm-4.7-flash", "GLM 4.7 Flash (0.05x)"),
+        ("qwen3-coder-next", "Qwen3 Coder Next (0.05x)"),
+        ("minimax-m2.1", "MiniMax M2.1 (0.15x)"),
+        ("claude-haiku-4.5", "Claude Haiku 4.5 (0.40x)"),
+        ("claude-sonnet-4", "Claude Sonnet 4 (1.30x)"),
+        ("claude-sonnet-4.5", "Claude Sonnet 4.5 (1.30x)")
+    ]
+}
+
+// MARK: - Live Chat Message View
+
+struct LiveChatMessageView: View, Equatable {
+    let message: LiveMessage
+    @ObservedObject private var theme = ThemeManager.shared
+    
+    static func == (lhs: LiveChatMessageView, rhs: LiveChatMessageView) -> Bool {
+        lhs.message == rhs.message
+    }
+    
+    var body: some View {
+        switch message.role {
+        case .user:
+            userView
+        case .tool:
+            toolView
+        case .assistant:
+            assistantView
+        }
+    }
+    
+    private var userView: some View {
+        HStack {
+            Spacer(minLength: 60)
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack {
+                    Text("You").font(.headline)
+                    Image(systemName: "person.circle.fill").foregroundStyle(.blue)
+                }
+                Markdown(message.content)
+                    .markdownTheme(.kiro)
+                    .textSelection(.enabled)
+                    .padding()
+                    .background(theme.usesCustomColors ? theme.activeTheme.userBubble : Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private var assistantView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "sparkles").foregroundStyle(.purple)
+                    Text("Kiro").font(.headline)
+                    if message.isStreaming {
+                        ProgressView().scaleEffect(0.5)
+                    }
+                }
+                if message.content.isEmpty && message.isStreaming {
+                    HStack(spacing: 4) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            Circle().fill(.secondary).frame(width: 6, height: 6).opacity(0.5)
+                        }
+                    }
+                    .padding()
+                } else {
+                    Markdown(message.content)
+                        .markdownTheme(.kiro)
+                        .textSelection(.enabled)
+                        .padding()
+                        .background(theme.usesCustomColors ? theme.activeTheme.assistantBubble : Color.purple.opacity(0.1))
+                        .cornerRadius(8)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+    }
+    
+    private var toolView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                    Text(message.toolName ?? "tool")
+                        .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    if let status = message.toolStatus {
+                        Text(status)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(status == "completed" ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
+                            .foregroundStyle(status == "completed" ? .green : .orange)
+                            .cornerRadius(4)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.05))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+            )
+            Spacer()
+        }
+        .padding(.horizontal)
     }
 }

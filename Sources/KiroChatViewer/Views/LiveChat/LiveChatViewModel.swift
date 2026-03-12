@@ -14,7 +14,6 @@ class LiveChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init() {
-        // Observe client state
         client.$state
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
@@ -23,7 +22,6 @@ class LiveChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         
-        // Observe events
         client.events
             .receive(on: DispatchQueue.main)
             .sink { [weak self] event in self?.handleEvent(event) }
@@ -31,6 +29,7 @@ class LiveChatViewModel: ObservableObject {
     }
     
     func connect() {
+        AppLogger.ui.info("LiveChat: connecting to \(self.workingDirectory)")
         client.connect(cwd: workingDirectory)
     }
     
@@ -38,13 +37,15 @@ class LiveChatViewModel: ObservableObject {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
-        messages.append(LiveMessage(role: "user", content: text))
-        messages.append(LiveMessage(role: "assistant", content: "", isStreaming: true))
+        AppLogger.ui.info("LiveChat: sending prompt (\(text.count) chars)")
+        messages.append(LiveMessage(role: .user, content: text))
+        messages.append(LiveMessage(role: .assistant, content: "", isStreaming: true))
         inputText = ""
         client.prompt(text: text)
     }
     
     func stop() {
+        AppLogger.ui.info("LiveChat: cancelling")
         client.cancel()
         if let idx = messages.indices.last, messages[idx].isStreaming {
             messages[idx].isStreaming = false
@@ -52,6 +53,7 @@ class LiveChatViewModel: ObservableObject {
     }
     
     func disconnect() {
+        AppLogger.ui.info("LiveChat: disconnecting")
         client.disconnect()
         messages.removeAll()
     }
@@ -59,14 +61,13 @@ class LiveChatViewModel: ObservableObject {
     private func handleEvent(_ event: ACPEvent) {
         switch event {
         case .chunk(let text):
-            if let idx = messages.indices.last, messages[idx].role == "assistant" {
+            if let idx = messages.indices.last, messages[idx].role == .assistant {
                 messages[idx].content += text
             }
             
         case .toolCall(let name, let status):
-            // Insert tool message before the current assistant message
-            if let idx = messages.indices.last, messages[idx].role == "assistant" && messages[idx].isStreaming {
-                let tool = LiveMessage(role: "tool", content: "", toolName: name, toolStatus: status)
+            if let idx = messages.indices.last, messages[idx].role == .assistant && messages[idx].isStreaming {
+                let tool = LiveMessage(role: .tool, content: "", toolName: name, toolStatus: status)
                 messages.insert(tool, at: idx)
             }
             
@@ -74,9 +75,11 @@ class LiveChatViewModel: ObservableObject {
             if let idx = messages.indices.last, messages[idx].isStreaming {
                 messages[idx].isStreaming = false
             }
+            AppLogger.ui.info("LiveChat: turn ended, \(self.messages.count) messages")
             
         case .error(let msg):
             error = msg
+            AppLogger.ui.error("LiveChat: error — \(msg)")
             if let idx = messages.indices.last, messages[idx].isStreaming {
                 messages[idx].isStreaming = false
                 messages[idx].content += "\n\n⚠️ Error: \(msg)"
@@ -84,4 +87,3 @@ class LiveChatViewModel: ObservableObject {
         }
     }
 }
-

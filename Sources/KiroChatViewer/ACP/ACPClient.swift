@@ -33,7 +33,7 @@ class ACPClient: ObservableObject, ACPProviding {
     }
     
     private func log(_ msg: String) {
-        AppLogger.db.info("\(msg)")
+        AppLogger.acp.info("\(msg)")
     }
     
     // MARK: - Connect
@@ -98,7 +98,7 @@ class ACPClient: ObservableObject, ACPProviding {
                 let data = errPipe.fileHandleForReading.readData(ofLength: 4096)
                 if data.isEmpty { break }
                 if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                    AppLogger.db.error("ACP STDERR: \(str.prefix(500))")
+                    AppLogger.acp.error("ACP STDERR: \(str.prefix(500))")
                     if str.contains("Parse error") || str.contains("missing field") {
                         DispatchQueue.main.async {
                             self?.eventSubject.send(.error(str.components(separatedBy: "\"error\":").last?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Parse error"))
@@ -112,7 +112,7 @@ class ACPClient: ObservableObject, ACPProviding {
             DispatchQueue.main.async {
                 self?.state = .disconnected
                 self?.sessionId = nil
-                AppLogger.db.info("ACP: process terminated")
+                AppLogger.acp.info("ACP: process terminated")
             }
         }
         
