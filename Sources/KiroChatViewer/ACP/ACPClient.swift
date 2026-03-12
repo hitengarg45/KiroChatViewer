@@ -6,6 +6,7 @@ enum ACPEvent {
     case toolCall(name: String, status: String)
     case turnEnd
     case error(String)
+    case permissionRequest(id: Int, toolName: String, args: String)
 }
 
 enum ACPState: Equatable {
@@ -167,6 +168,15 @@ class ACPClient: ObservableObject, ACPProviding {
         send(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": sid]])
     }
     
+    func respondPermission(requestId: Int, allow: Bool) {
+        send([
+            "jsonrpc": "2.0",
+            "id": requestId,
+            "result": ["allowed": allow]
+        ])
+        log("ACP: permission response id=\(requestId) allowed=\(allow)")
+    }
+    
     func disconnect() {
         process?.terminate()
         process = nil
@@ -282,6 +292,22 @@ class ACPClient: ObservableObject, ACPProviding {
         
         // Other notifications (kiro extensions) — ignore silently
         if method?.hasPrefix("_kiro") == true || method?.hasPrefix("_session") == true {
+            return
+        }
+        
+        // session/request_permission — agent asking client to approve a tool
+        if method == "session/request_permission",
+           let reqId = json["id"] as? Int,
+           let params = json["params"] as? [String: Any] {
+            let toolName = params["toolName"] as? String ?? "unknown tool"
+            var argsStr = ""
+            if let args = params["arguments"] as? [String: Any],
+               let data = try? JSONSerialization.data(withJSONObject: args, options: [.prettyPrinted]),
+               let str = String(data: data, encoding: .utf8) {
+                argsStr = str
+            }
+            log("ACP: permission request id=\(reqId) tool=\(toolName)")
+            eventSubject.send(.permissionRequest(id: reqId, toolName: toolName, args: argsStr))
             return
         }
         

@@ -23,7 +23,58 @@ struct LiveChatView: View {
                 }
             } else {
                 chatArea
-                Divider()
+                
+                // Tool approval banner
+                if let perm = vm.pendingPermission {
+                    VStack(spacing: 8) {
+                        Divider()
+                        HStack(spacing: 12) {
+                            Image(systemName: "shield.lefthalf.filled")
+                                .font(.title3)
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Tool Approval Required")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text(perm.toolName)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.orange)
+                            }
+                            Spacer()
+                            Button { vm.denyPermission() } label: {
+                                Text("Deny")
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button { vm.approvePermission() } label: {
+                                Text("Allow")
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                        }
+                        .padding(.horizontal, 12)
+                        
+                        if !perm.args.isEmpty {
+                            ScrollView(.vertical, showsIndicators: true) {
+                                Text(perm.args)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                            }
+                            .frame(maxHeight: 120)
+                            .background(Color.orange.opacity(0.05))
+                            .cornerRadius(6)
+                            .padding(.horizontal, 12)
+                        }
+                        Divider()
+                    }
+                }
+                
                 inputBar
             }
         }
@@ -189,13 +240,24 @@ struct LiveChatView: View {
     // MARK: - Models
     
     static let availableModels: [(String, String)] = [
-        ("qwen3-coder-480b", "Qwen3 Coder 480B (0.01x)"),
-        ("glm-4.7-flash", "GLM 4.7 Flash (0.05x)"),
-        ("qwen3-coder-next", "Qwen3 Coder Next (0.05x)"),
-        ("minimax-m2.1", "MiniMax M2.1 (0.15x)"),
-        ("claude-haiku-4.5", "Claude Haiku 4.5 (0.40x)"),
-        ("claude-sonnet-4", "Claude Sonnet 4 (1.30x)"),
-        ("claude-sonnet-4.5", "Claude Sonnet 4.5 (1.30x)")
+        ("auto", "Auto"),
+        ("claude-opus-4.6", "Claude Opus 4.6"),
+        ("claude-opus-4.6-1m", "Claude Opus 4.6 1M"),
+        ("claude-sonnet-4.6", "Claude Sonnet 4.6"),
+        ("claude-sonnet-4.6-1m", "Claude Sonnet 4.6 1M"),
+        ("claude-opus-4.5", "Claude Opus 4.5"),
+        ("claude-sonnet-4.5", "Claude Sonnet 4.5"),
+        ("claude-sonnet-4.5-1m", "Claude Sonnet 4.5 1M"),
+        ("claude-sonnet-4", "Claude Sonnet 4"),
+        ("claude-haiku-4.5", "Claude Haiku 4.5"),
+        ("deepseek-3.2", "DeepSeek 3.2"),
+        ("kimi-k2.5", "Kimi K2.5"),
+        ("minimax-m2.1", "MiniMax M2.1"),
+        ("glm-4.7", "GLM 4.7"),
+        ("glm-4.7-flash", "GLM 4.7 Flash"),
+        ("qwen3-coder-next", "Qwen3 Coder Next"),
+        ("agi-nova-beta-1m", "AGI Nova Beta 1M"),
+        ("qwen3-coder-480b", "Qwen3 Coder 480B")
     ]
 }
 
