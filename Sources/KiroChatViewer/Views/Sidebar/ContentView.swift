@@ -277,7 +277,7 @@ struct ContentView: View {
                         try? await Task.sleep(for: .milliseconds(100))
                         await MainActor.run {
                             perf.end("Load")
-                            perf.record("Count", "\(db.conversations.count)")
+                            perf.captureAppMetrics(conversations: db.conversations, titles: titles, bookmarks: bookmarks)
                         }
                     }
                 } label: {
@@ -358,7 +358,7 @@ struct ContentView: View {
         }
         .onChange(of: db.conversations) { _ in
             perf.end("Load")
-            perf.record("Count", "\(db.conversations.count)")
+            perf.captureAppMetrics(conversations: db.conversations, titles: titles, bookmarks: bookmarks)
             AppLogger.ui.info("Conversations updated: \(db.conversations.count) total")
             
             updateFilteredConversations()
