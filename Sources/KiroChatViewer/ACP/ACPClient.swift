@@ -129,7 +129,7 @@ class ACPClient: ObservableObject, ACPProviding {
                 "params": [
                     "protocolVersion": 1,
                     "clientCapabilities": [String: Any](),
-                    "clientInfo": ["name": "KiroChatViewer", "version": "3.5.0"]
+                    "clientInfo": ["name": "KiroChatViewer", "version": "3.6.0"]
                 ] as [String: Any]
             ])
         } catch {

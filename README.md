@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.5.0
+## Current Version: 3.6.0
 
-[Download Latest Release](Releases/KiroChatViewer-v3.5.0.dmg)
+[Download Latest Release](Releases/KiroChatViewer-v3.6.0.dmg)
 
 ## Features
 
@@ -50,7 +50,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.5.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.6.0.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -100,7 +100,7 @@ Or use Console.app and filter by: `subsystem:com.kiro.chatviewer`
 
 ## Requirements
 
-- macOS 13.0 (Ventura) or later
+- macOS 14.0 (Sonoma) or later
 
 ## Building from Source
 
@@ -116,6 +116,35 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 3.6.0 (2026-03-13)
+
+**Performance, Polish & Testing**
+
+New Features:
+- ✅ Tool result truncation: large outputs capped at 30/150 lines with "Show all" on demand
+- ✅ fs_write append/insert rendering: blue-tinted code blocks instead of generic args
+- ✅ Enhanced Performance Monitor: app-wide metrics with sectioned UI
+- ✅ Comprehensive test suite with swift-testing framework
+
+Performance:
+- ✅ Singleton observation fix (@StateObject → @ObservedObject)
+- ✅ Database loading fully off main thread (0ms blocking)
+- ✅ Single query + single publish (was 4-5 re-renders)
+- ✅ Async file I/O in TitleManager/BookmarkManager
+- ✅ Cached filteredConversations with explicit invalidation
+- ✅ Debounced search (300ms)
+- ✅ Batched title generation publishes
+- ✅ Reversed ScrollView for instant bottom-first rendering
+- ✅ MessageView: Equatable prevents unnecessary re-renders
+- ✅ Loading indicator during conversation load
+
+Documentation:
+- ✅ Optimization analysis document (30 optimizations evaluated)
+
+Technical:
+- macOS 14+ minimum (was 13+)
+- Project restructured: organized by feature with extracted views and protocols
 
 ### Version 3.5.0 (2026-03-09)
 
