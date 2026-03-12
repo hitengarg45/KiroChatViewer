@@ -183,6 +183,17 @@ struct FsWriteToolView: View {
                 .frame(maxHeight: 200)
                 .background(Color.green.opacity(0.05))
                 .cornerRadius(6)
+            } else if (command == "append" || command == "insert") && !newStr.isEmpty {
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(newStr)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .frame(maxHeight: 200)
+                .background(Color.blue.opacity(0.05))
+                .cornerRadius(6)
             } else {
                 GenericToolArgsView(call: call, resultExpanded: $resultExpanded)
             }
@@ -547,31 +558,81 @@ struct GenericToolArgsView: View {
 struct ToolResultView: View {
     let call: ToolCall
     @Binding var resultExpanded: Bool
+    @State private var showFull = false
+    
+    /// Max lines to render in collapsed/expanded states to avoid SwiftUI layout cost on huge outputs.
+    private static let collapsedLineLimit = 30
+    private static let expandedLineLimit = 150
     
     var body: some View {
         if let result = call.result, !result.content.isEmpty {
+            let totalLines = result.content.countLines
+            let lineLimit = showFull ? totalLines : (resultExpanded ? Self.expandedLineLimit : Self.collapsedLineLimit)
+            let displayText = result.content.prefixLines(lineLimit)
+            let isTruncated = lineLimit < totalLines
+            
             HStack {
                 Text("Result").font(.caption).foregroundStyle(.secondary)
                 Text("(\(ByteCountFormatter.string(fromByteCount: Int64(result.content.utf8.count), countStyle: .file)))")
                     .font(.caption2).foregroundStyle(.tertiary)
+                if totalLines > Self.collapsedLineLimit {
+                    Text("\(totalLines) lines").font(.caption2).foregroundStyle(.tertiary)
+                }
                 Spacer()
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle() }
+                    withAnimation(.easeInOut(duration: 0.2)) { resultExpanded.toggle(); showFull = false }
                 } label: {
                     Text(resultExpanded ? "Show Less" : "Show More").font(.caption2).foregroundStyle(.blue)
                 }.buttonStyle(.plain)
             }
             ScrollView(.vertical, showsIndicators: true) {
-                Text(result.content)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(displayText)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    
+                    if isTruncated {
+                        Button {
+                            showFull = true
+                        } label: {
+                            Text("Show all \(totalLines) lines…")
+                                .font(.caption2).foregroundStyle(.blue)
+                                .padding(.horizontal, 8).padding(.bottom, 8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             .frame(maxHeight: resultExpanded ? 600 : 120)
             .background(Color(.textBackgroundColor).opacity(0.5))
             .cornerRadius(6)
         }
+    }
+}
+
+// MARK: - String Line Helpers
+
+private extension String {
+    var countLines: Int {
+        var count = 1
+        for c in self where c == "\n" { count += 1 }
+        return count
+    }
+    
+    func prefixLines(_ n: Int) -> String {
+        guard n < countLines else { return self }
+        var linesSeen = 0
+        for (i, c) in self.enumerated() {
+            if c == "\n" {
+                linesSeen += 1
+                if linesSeen >= n {
+                    return String(self.prefix(i))
+                }
+            }
+        }
+        return self
     }
 }
 
