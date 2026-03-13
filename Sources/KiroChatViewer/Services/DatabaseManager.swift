@@ -20,7 +20,8 @@ class DatabaseManager: ObservableObject, DatabaseProviding {
             do {
                 // Single query, single connection — all on background thread
                 var allConvs = try Self.fetchConversations(from: dbPath)
-                AppLogger.perf.info("Loaded \(allConvs.count) conversations in \(Date().timeIntervalSince(start) * 1000, privacy: .public)ms")
+                AppLogger.perf.info("Loaded \(allConvs.count) conversations in \(Int(Date().timeIntervalSince(start) * 1000))ms")
+                AppLogger.db.debug("DB path: \(dbPath.path)")
                 
                 // Merge from latest backup — background thread
                 if let backupURL = BackupManager.shared.latestBackupURL, backupURL.path != dbPath.path {

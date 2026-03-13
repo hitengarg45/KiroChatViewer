@@ -474,12 +474,19 @@ struct Message: Identifiable, Hashable {
 
 // MARK: - Live Chat Message
 
+enum LiveRole: Equatable {
+    case user, assistant, tool
+}
 
-struct LiveMessage: Identifiable {
+struct LiveMessage: Identifiable, Equatable {
     let id = UUID()
-    let role: String // "user", "assistant", "tool"
+    let role: LiveRole
     var content: String
     var toolName: String?
     var toolStatus: String?
     var isStreaming: Bool = false
+    
+    static func == (lhs: LiveMessage, rhs: LiveMessage) -> Bool {
+        lhs.id == rhs.id && lhs.content == rhs.content && lhs.isStreaming == rhs.isStreaming && lhs.toolStatus == rhs.toolStatus
+    }
 }

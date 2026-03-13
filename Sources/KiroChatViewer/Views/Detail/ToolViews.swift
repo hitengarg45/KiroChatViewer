@@ -636,37 +636,6 @@ private extension String {
     }
 }
 
-// MARK: - Continue In Terminal Button
-
-struct ContinueInTerminalButton: View {
-    let action: () -> Void
-    @State private var isHovering = false
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: "terminal.fill")
-                    .font(.system(size: 14))
-                if isHovering {
-                    Text("Continue in Terminal")
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, isHovering ? 14 : 10)
-            .padding(.vertical, 10)
-            .background(Color.purple, in: Capsule())
-            .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { isHovering = hovering }
-        }
-    }
-}
-
 // MARK: - File Document
 
 struct TextDocument: FileDocument {

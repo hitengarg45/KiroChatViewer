@@ -6,6 +6,8 @@ enum ACPEvent {
     case toolCall(name: String, status: String)
     case turnEnd
     case error(String)
+    case permissionRequest(id: String, toolName: String, options: [(id: String, name: String)])
+    case contextUpdate(percentage: Double)
 }
 
 enum ACPState: Equatable {
@@ -33,7 +35,11 @@ class ACPClient: ObservableObject, ACPProviding {
     }
     
     private func log(_ msg: String) {
-        AppLogger.db.info("\(msg)")
+        AppLogger.acp.info(msg)
+    }
+    
+    private func logDebug(_ msg: String) {
+        AppLogger.acp.debug(msg)
     }
     
     // MARK: - Connect
@@ -98,7 +104,7 @@ class ACPClient: ObservableObject, ACPProviding {
                 let data = errPipe.fileHandleForReading.readData(ofLength: 4096)
                 if data.isEmpty { break }
                 if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                    AppLogger.db.error("ACP STDERR: \(str.prefix(500))")
+                    AppLogger.acp.error("ACP STDERR: \(str.prefix(500))")
                     if str.contains("Parse error") || str.contains("missing field") {
                         DispatchQueue.main.async {
                             self?.eventSubject.send(.error(str.components(separatedBy: "\"error\":").last?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Parse error"))
@@ -112,7 +118,7 @@ class ACPClient: ObservableObject, ACPProviding {
             DispatchQueue.main.async {
                 self?.state = .disconnected
                 self?.sessionId = nil
-                AppLogger.db.info("ACP: process terminated")
+                AppLogger.acp.info("ACP: process terminated")
             }
         }
         
@@ -167,13 +173,54 @@ class ACPClient: ObservableObject, ACPProviding {
         send(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": sid]])
     }
     
+    func setModel(_ model: String) {
+        guard let sid = sessionId else { return }
+        send([
+            "jsonrpc": "2.0",
+            "id": nextId(),
+            "method": "session/set_model",
+            "params": ["sessionId": sid, "modelId": model] as [String: Any]
+        ])
+        log("ACP: set model to \(model)")
+    }
+    
+    func executeCommand(_ command: String) {
+        guard let sid = sessionId else { return }
+        send([
+            "jsonrpc": "2.0",
+            "id": nextId(),
+            "method": "_kiro.dev/commands/execute",
+            "params": ["sessionId": sid, "command": command] as [String: Any]
+        ])
+        logDebug("ACP: execute command \(command)")
+    }
+    
+    func respondPermission(requestId: String, optionId: String) {
+        send([
+            "jsonrpc": "2.0",
+            "id": requestId,
+            "result": [
+                "outcome": [
+                    "outcome": "selected",
+                    "optionId": optionId
+                ] as [String: Any]
+            ] as [String: Any]
+        ])
+        log("ACP: permission response id=\(requestId) option=\(optionId)")
+    }
+    
     func disconnect() {
         process?.terminate()
+        process?.waitUntilExit()
         process = nil
         stdinHandle = nil
         state = .disconnected
         sessionId = nil
         requestId = 0
+    }
+    
+    deinit {
+        process?.terminate()
     }
     
     // MARK: - Send
@@ -187,7 +234,8 @@ class ACPClient: ObservableObject, ACPProviding {
         str += "\n"
         guard let writeData = str.data(using: .utf8) else { return }
         stdinHandle?.write(writeData)
-        self.log("ACP SEND: \(msg["method"] as? String ?? "?") id=\(msg["id"] as? Int ?? -1)")
+        self.log("ACP SENT: \(str.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300))")
+        logDebug("ACP SENT FULL: \(str.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
     
     // MARK: - Process Messages
@@ -199,6 +247,12 @@ class ACPClient: ObservableObject, ACPProviding {
         let hasResult = json["result"] != nil
         let hasError = json["error"] != nil
         self.log("ACP RECV: method=\(method ?? "nil") id=\(id ?? -1) result=\(hasResult) error=\(hasError)")
+        
+        // Debug: full payload
+        if let data = try? JSONSerialization.data(withJSONObject: json, options: []),
+           let str = String(data: data, encoding: .utf8) {
+            logDebug("ACP RECV FULL: \(str)")
+        }
         
         // Response with result
         if let result = json["result"] as? [String: Any] {
@@ -280,8 +334,42 @@ class ACPClient: ObservableObject, ACPProviding {
             return
         }
         
+        // Kiro extensions
+        if method == "_kiro.dev/metadata",
+           let params = json["params"] as? [String: Any],
+           let pct = params["contextUsagePercentage"] as? Double {
+            eventSubject.send(.contextUpdate(percentage: pct))
+            return
+        }
+        
         // Other notifications (kiro extensions) — ignore silently
         if method?.hasPrefix("_kiro") == true || method?.hasPrefix("_session") == true {
+            return
+        }
+        
+        // session/request_permission — agent asking client to approve a tool
+        if method == "session/request_permission",
+           let params = json["params"] as? [String: Any] {
+            // id can be String or Int
+            let reqId: String
+            if let strId = json["id"] as? String { reqId = strId }
+            else if let intId = json["id"] as? Int { reqId = "\(intId)" }
+            else { reqId = "unknown" }
+            
+            let toolCall = params["toolCall"] as? [String: Any]
+            let toolName = toolCall?["title"] as? String ?? "unknown tool"
+            
+            var options: [(id: String, name: String)] = []
+            if let opts = params["options"] as? [[String: Any]] {
+                for opt in opts {
+                    let optId = opt["optionId"] as? String ?? ""
+                    let optName = opt["name"] as? String ?? optId
+                    options.append((id: optId, name: optName))
+                }
+            }
+            
+            log("ACP: permission request id=\(reqId) tool=\(toolName) options=\(options.map { $0.name })")
+            eventSubject.send(.permissionRequest(id: reqId, toolName: toolName, options: options))
             return
         }
         
