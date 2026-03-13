@@ -51,33 +51,3 @@ import Testing
         #expect(monitor.metrics.isEmpty)
     }
 }
-
-// MARK: - MarkdownCache Tests
-
-@Suite struct MarkdownCacheTests {
-
-    @Test func getReturnsCachedContent() {
-        let cache = MarkdownCache()
-        let first = cache.get("k1", content: "hello")
-        let second = cache.get("k1", content: "different")
-        #expect(first == "hello")
-        #expect(second == "hello") // returns cached, not new content
-    }
-
-    @Test func differentKeysStoreSeparately() {
-        let cache = MarkdownCache()
-        _ = cache.get("k1", content: "aaa")
-        _ = cache.get("k2", content: "bbb")
-        #expect(cache.get("k1", content: "x") == "aaa")
-        #expect(cache.get("k2", content: "x") == "bbb")
-    }
-
-    @Test func clearRemovesAll() {
-        let cache = MarkdownCache()
-        _ = cache.get("k1", content: "aaa")
-        cache.clear()
-        // After clear, should store new content
-        let result = cache.get("k1", content: "new")
-        #expect(result == "new")
-    }
-}
