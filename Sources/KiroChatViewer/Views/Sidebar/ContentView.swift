@@ -29,6 +29,14 @@ struct ContentView: View {
     @ObservedObject private var backupManager = BackupManager.shared
     @State private var cachedFiltered: [Conversation] = []
     @State private var cachedGrouped: [(directory: String, conversations: [Conversation])] = []
+    @StateObject private var acpSessions = ACPSessionManager()
+    @State private var selectedSource: SessionSource = .terminal
+    @State private var selectedACPSession: ACPSession?
+    
+    enum SessionSource: String, CaseIterable {
+        case terminal = "Terminal"
+        case acp = "ACP"
+    }
     
     enum GroupSortOrder: String {
         case name = "Name"
@@ -94,108 +102,21 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
-                // Folders section
-                folderSection
-                
-                Divider()
-                
-                // Conversations list
-                if isGroupedByWorkspace {
-                    List(selection: $selectedConversation) {
-                        ForEach(cachedGrouped, id: \.directory) { group in
-                            Section {
-                                if expandedDirectories.contains(group.directory) {
-                                    ForEach(group.conversations) { conv in
-                                        ConversationRow(
-                                            conversation: conv,
-                                            isSelected: selectedConversation?.id == conv.id,
-                                            indented: true,
-                                            bookmarks: bookmarks,
-                                            titles: titles,
-                                            onDelete: {
-                                                if selectedConversation?.id == conv.id { selectedConversation = nil }
-                                                db.deleteConversation(conv)
-                                            }
-                                        )
-                                        .tag(conv)
-                                        .listRowSeparator(group.conversations.count > 1 ? .visible : .hidden)
-                                    }
-                                }
-                            } header: {
-                                Button {
-                                    withAnimation {
-                                        if expandedDirectories.contains(group.directory) {
-                                            expandedDirectories.remove(group.directory)
-                                        } else {
-                                            expandedDirectories.insert(group.directory)
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "folder.fill")
-                                            .foregroundStyle(.blue)
-                                            .font(.title3)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(group.directory.split(separator: "/").last.map(String.init) ?? group.directory)
-                                                .font(.system(size: themeManager.folderFontSize, weight: .medium))
-                                                .foregroundStyle(.primary)
-                                            HStack(spacing: 8) {
-                                                Text("\(group.conversations.count) chat\(group.conversations.count == 1 ? "" : "s")")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                if let latest = group.conversations.first {
-                                                    Text("Latest: \(latest.updatedAt, style: .relative)")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.tertiary)
-                                                }
-                                            }
-                                        }
-                                        Spacer()
-                                        Image(systemName: expandedDirectories.contains(group.directory) ? "chevron.down" : "chevron.right")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.vertical, 3)
-                                    .padding(.horizontal, 4)
-                                    .padding(.trailing, 12)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+                // Source picker
+                Picker("", selection: $selectedSource) {
+                    ForEach(SessionSource.allCases, id: \.self) { source in
+                        Text(source.rawValue).tag(source)
                     }
-                    .overlay {
-                        if db.isLoading && cachedFiltered.isEmpty {
-                            loadingView
-                        } else if cachedFiltered.isEmpty {
-                            emptyStateView
-                        }
-                    }
-                    .searchable(text: $searchText, prompt: "Search conversations")
-                    .padding(.top, 4)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+                
+                if selectedSource == .terminal {
+                    terminalSessionsSidebar
                 } else {
-                    List(cachedFiltered, selection: $selectedConversation) { conv in
-                        ConversationRow(
-                            conversation: conv,
-                            isSelected: selectedConversation?.id == conv.id,
-                            bookmarks: bookmarks,
-                            titles: titles,
-                            onDelete: {
-                                if selectedConversation?.id == conv.id { selectedConversation = nil }
-                                db.deleteConversation(conv)
-                            }
-                        )
-                        .tag(conv)
-                    }
-                    .overlay {
-                        if db.isLoading && cachedFiltered.isEmpty {
-                            loadingView
-                        } else if cachedFiltered.isEmpty {
-                            emptyStateView
-                        }
-                    }
-                    .searchable(text: $searchText, prompt: "Search conversations")
-                    .padding(.top, 4)
+                    acpSessionsSidebar
                 }
             }
             .navigationTitle("Kiro Chats")
@@ -319,7 +240,10 @@ struct ContentView: View {
                                     .help("Return to conversation viewer")
                                 }
                             }
-                    } else if let selected = selectedConversation,
+                    } else if selectedSource == .acp, let session = selectedACPSession {
+                let events = acpSessions.loadEvents(for: session.id)
+                ACPSessionDetailView(session: session, events: events)
+            } else if let selected = selectedConversation,
                        let conv = db.conversations.first(where: { $0.id == selected.id }) ?? selectedConversation {
                         ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
                             .environmentObject(db)
@@ -370,6 +294,10 @@ struct ContentView: View {
             AppLogger.ui.info("App launched")
             perf.start("Load")
             db.loadConversations()
+            acpSessions.loadSessions()
+        }
+        .onChange(of: selectedSource) { source in
+            if source == .acp { acpSessions.loadSessions() }
         }
         .onChange(of: db.conversations) { _ in
             perf.end("Load")
@@ -450,6 +378,103 @@ struct ContentView: View {
         )) {
             Button("OK") { backupManager.lastBackupStatus = nil }
         }
+    }
+    
+    // MARK: - Terminal Sessions Sidebar
+    
+    private var terminalSessionsSidebar: some View {
+        VStack(spacing: 0) {
+            folderSection
+            Divider()
+            if isGroupedByWorkspace {
+                List(selection: $selectedConversation) {
+                    ForEach(cachedGrouped, id: \.directory) { group in
+                        Section {
+                            if expandedDirectories.contains(group.directory) {
+                                ForEach(group.conversations) { conv in
+                                    ConversationRow(conversation: conv, isSelected: selectedConversation?.id == conv.id, indented: true, bookmarks: bookmarks, titles: titles, onDelete: {
+                                        if selectedConversation?.id == conv.id { selectedConversation = nil }
+                                        db.deleteConversation(conv)
+                                    }).tag(conv).listRowSeparator(group.conversations.count > 1 ? .visible : .hidden)
+                                }
+                            }
+                        } header: {
+                            Button {
+                                withAnimation {
+                                    if expandedDirectories.contains(group.directory) { expandedDirectories.remove(group.directory) }
+                                    else { expandedDirectories.insert(group.directory) }
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "folder.fill").foregroundStyle(.blue).font(.title3)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(group.directory.split(separator: "/").last.map(String.init) ?? group.directory)
+                                            .font(.system(size: themeManager.folderFontSize, weight: .medium)).foregroundStyle(.primary)
+                                        HStack(spacing: 8) {
+                                            Text("\(group.conversations.count) chat\(group.conversations.count == 1 ? "" : "s")").font(.caption).foregroundStyle(.secondary)
+                                            if let latest = group.conversations.first {
+                                                Text("Latest: \(latest.updatedAt, style: .relative)").font(.caption).foregroundStyle(.tertiary)
+                                            }
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: expandedDirectories.contains(group.directory) ? "chevron.down" : "chevron.right").font(.caption).foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 3).padding(.horizontal, 4).padding(.trailing, 12).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                }
+                .overlay { if db.isLoading && cachedFiltered.isEmpty { loadingView } else if cachedFiltered.isEmpty { emptyStateView } }
+                .searchable(text: $searchText, prompt: "Search conversations").padding(.top, 4)
+            } else {
+                List(cachedFiltered, selection: $selectedConversation) { conv in
+                    ConversationRow(conversation: conv, isSelected: selectedConversation?.id == conv.id, bookmarks: bookmarks, titles: titles, onDelete: {
+                        if selectedConversation?.id == conv.id { selectedConversation = nil }
+                        db.deleteConversation(conv)
+                    }).tag(conv)
+                }
+                .overlay { if db.isLoading && cachedFiltered.isEmpty { loadingView } else if cachedFiltered.isEmpty { emptyStateView } }
+                .searchable(text: $searchText, prompt: "Search conversations").padding(.top, 4)
+            }
+        }
+    }
+    
+    // MARK: - ACP Sessions Sidebar
+    
+    private var acpSessionsSidebar: some View {
+        List(acpSessions.sessions, selection: $selectedACPSession) { session in
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.fill").font(.caption).foregroundStyle(.purple.opacity(0.6))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(session.title)
+                        .font(.system(size: themeManager.conversationFontSize))
+                        .lineLimit(2)
+                    HStack {
+                        Text("\(session.turnCount) turn\(session.turnCount == 1 ? "" : "s")")
+                            .font(.caption).foregroundStyle(.tertiary)
+                        Spacer()
+                        Text(session.updatedAt, style: .relative)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 6).padding(.horizontal, 4)
+            .tag(session)
+        }
+        .overlay {
+            if acpSessions.isLoading && acpSessions.sessions.isEmpty {
+                loadingView
+            } else if acpSessions.sessions.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "bolt").font(.system(size: 36)).foregroundStyle(.secondary)
+                    Text("No ACP Sessions").font(.title3).fontWeight(.semibold)
+                    Text("Start a live chat to create one").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .searchable(text: $searchText, prompt: "Search sessions")
+        .padding(.top, 4)
     }
     
     private var emptyStateView: some View {
