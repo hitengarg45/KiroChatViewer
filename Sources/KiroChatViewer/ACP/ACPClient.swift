@@ -6,7 +6,7 @@ enum ACPEvent {
     case toolCall(name: String, status: String)
     case turnEnd
     case error(String)
-    case permissionRequest(id: Int, toolName: String, args: String)
+    case permissionRequest(id: String, toolName: String, options: [(id: String, name: String)])
 }
 
 enum ACPState: Equatable {
@@ -168,13 +168,18 @@ class ACPClient: ObservableObject, ACPProviding {
         send(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": sid]])
     }
     
-    func respondPermission(requestId: Int, allow: Bool) {
+    func respondPermission(requestId: String, optionId: String) {
         send([
             "jsonrpc": "2.0",
             "id": requestId,
-            "result": ["allowed": allow]
+            "result": [
+                "outcome": [
+                    "outcome": "selected",
+                    "optionId": optionId
+                ] as [String: Any]
+            ] as [String: Any]
         ])
-        log("ACP: permission response id=\(requestId) allowed=\(allow)")
+        log("ACP: permission response id=\(requestId) option=\(optionId)")
     }
     
     func disconnect() {
@@ -197,7 +202,12 @@ class ACPClient: ObservableObject, ACPProviding {
         str += "\n"
         guard let writeData = str.data(using: .utf8) else { return }
         stdinHandle?.write(writeData)
-        self.log("ACP SEND: \(msg["method"] as? String ?? "?") id=\(msg["id"] as? Int ?? -1)")
+        // Debug: log what we actually sent
+        let debugLine = "ACP SENT: \(str.prefix(500))"
+        if let logData = debugLine.data(using: .utf8) {
+            let logFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/KiroChatViewer/acp_debug.log")
+            if let fh = try? FileHandle(forWritingTo: logFile) { fh.seekToEndOfFile(); fh.write(logData); fh.closeFile() }
+        }
     }
     
     // MARK: - Process Messages
@@ -209,6 +219,20 @@ class ACPClient: ObservableObject, ACPProviding {
         let hasResult = json["result"] != nil
         let hasError = json["error"] != nil
         self.log("ACP RECV: method=\(method ?? "nil") id=\(id ?? -1) result=\(hasResult) error=\(hasError)")
+        
+        // Debug: print raw message for troubleshooting
+        if let data = try? JSONSerialization.data(withJSONObject: json, options: []),
+           let str = String(data: data, encoding: .utf8) {
+            let logLine = "ACP RAW: \(str.prefix(500))\n"
+            if let logData = logLine.data(using: .utf8) {
+                let logFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/KiroChatViewer/acp_debug.log")
+                if FileManager.default.fileExists(atPath: logFile.path) {
+                    if let fh = try? FileHandle(forWritingTo: logFile) { fh.seekToEndOfFile(); fh.write(logData); fh.closeFile() }
+                } else {
+                    try? logData.write(to: logFile)
+                }
+            }
+        }
         
         // Response with result
         if let result = json["result"] as? [String: Any] {
@@ -297,17 +321,27 @@ class ACPClient: ObservableObject, ACPProviding {
         
         // session/request_permission — agent asking client to approve a tool
         if method == "session/request_permission",
-           let reqId = json["id"] as? Int,
            let params = json["params"] as? [String: Any] {
-            let toolName = params["toolName"] as? String ?? "unknown tool"
-            var argsStr = ""
-            if let args = params["arguments"] as? [String: Any],
-               let data = try? JSONSerialization.data(withJSONObject: args, options: [.prettyPrinted]),
-               let str = String(data: data, encoding: .utf8) {
-                argsStr = str
+            // id can be String or Int
+            let reqId: String
+            if let strId = json["id"] as? String { reqId = strId }
+            else if let intId = json["id"] as? Int { reqId = "\(intId)" }
+            else { reqId = "unknown" }
+            
+            let toolCall = params["toolCall"] as? [String: Any]
+            let toolName = toolCall?["title"] as? String ?? "unknown tool"
+            
+            var options: [(id: String, name: String)] = []
+            if let opts = params["options"] as? [[String: Any]] {
+                for opt in opts {
+                    let optId = opt["optionId"] as? String ?? ""
+                    let optName = opt["name"] as? String ?? optId
+                    options.append((id: optId, name: optName))
+                }
             }
-            log("ACP: permission request id=\(reqId) tool=\(toolName)")
-            eventSubject.send(.permissionRequest(id: reqId, toolName: toolName, args: argsStr))
+            
+            log("ACP: permission request id=\(reqId) tool=\(toolName) options=\(options.map { $0.name })")
+            eventSubject.send(.permissionRequest(id: reqId, toolName: toolName, options: options))
             return
         }
         

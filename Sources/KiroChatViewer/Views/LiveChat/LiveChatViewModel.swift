@@ -9,7 +9,7 @@ class LiveChatViewModel: ObservableObject {
     @Published var currentModel = "qwen3-coder-480b"
     @Published var workingDirectory = NSHomeDirectory()
     @Published var error: String?
-    @Published var pendingPermission: (id: Int, toolName: String, args: String)?
+    @Published var pendingPermission: (id: String, toolName: String, options: [(id: String, name: String)])?
     
     let client = ACPClient()
     private var cancellables = Set<AnyCancellable>()
@@ -60,17 +60,10 @@ class LiveChatViewModel: ObservableObject {
         pendingPermission = nil
     }
     
-    func approvePermission() {
+    func respondPermission(optionId: String) {
         guard let perm = pendingPermission else { return }
-        AppLogger.ui.info("LiveChat: approved \(perm.toolName)")
-        client.respondPermission(requestId: perm.id, allow: true)
-        pendingPermission = nil
-    }
-    
-    func denyPermission() {
-        guard let perm = pendingPermission else { return }
-        AppLogger.ui.info("LiveChat: denied \(perm.toolName)")
-        client.respondPermission(requestId: perm.id, allow: false)
+        AppLogger.ui.info("LiveChat: permission \(optionId) for \(perm.toolName)")
+        client.respondPermission(requestId: perm.id, optionId: optionId)
         pendingPermission = nil
     }
     
@@ -101,9 +94,9 @@ class LiveChatViewModel: ObservableObject {
                 messages[idx].content += "\n\n⚠️ Error: \(msg)"
             }
             
-        case .permissionRequest(let id, let toolName, let args):
+        case .permissionRequest(let id, let toolName, let options):
             AppLogger.ui.info("LiveChat: permission request for \(toolName)")
-            pendingPermission = (id: id, toolName: toolName, args: args)
+            pendingPermission = (id: id, toolName: toolName, options: options)
         }
     }
 }

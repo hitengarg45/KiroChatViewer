@@ -26,53 +26,7 @@ struct LiveChatView: View {
                 
                 // Tool approval banner
                 if let perm = vm.pendingPermission {
-                    VStack(spacing: 8) {
-                        Divider()
-                        HStack(spacing: 12) {
-                            Image(systemName: "shield.lefthalf.filled")
-                                .font(.title3)
-                                .foregroundStyle(.orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Tool Approval Required")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                Text(perm.toolName)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.orange)
-                            }
-                            Spacer()
-                            Button { vm.denyPermission() } label: {
-                                Text("Deny")
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                            }
-                            .buttonStyle(.bordered)
-                            
-                            Button { vm.approvePermission() } label: {
-                                Text("Allow")
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.green)
-                        }
-                        .padding(.horizontal, 12)
-                        
-                        if !perm.args.isEmpty {
-                            ScrollView(.vertical, showsIndicators: true) {
-                                Text(perm.args)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .textSelection(.enabled)
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                            }
-                            .frame(maxHeight: 120)
-                            .background(Color.orange.opacity(0.05))
-                            .cornerRadius(6)
-                            .padding(.horizontal, 12)
-                        }
-                        Divider()
-                    }
+                    toolApprovalBanner(perm: perm)
                 }
                 
                 inputBar
@@ -237,6 +191,47 @@ struct LiveChatView: View {
         .padding(10)
     }
     
+    // MARK: - Tool Approval Banner
+    
+    private func toolApprovalBanner(perm: (id: String, toolName: String, options: [(id: String, name: String)])) -> some View {
+        VStack(spacing: 8) {
+            Divider()
+            HStack(spacing: 12) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tool Approval Required")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(perm.toolName)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.orange)
+                }
+                Spacer()
+                approvalButtons(options: perm.options)
+            }
+            .padding(.horizontal, 12)
+            Divider()
+        }
+    }
+    
+    private func approvalButtons(options: [(id: String, name: String)]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(options.map { PermOption(optionId: $0.id, name: $0.name) }) { opt in
+                if opt.optionId.contains("reject") {
+                    Button(opt.name) { vm.respondPermission(optionId: opt.optionId) }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                } else {
+                    Button(opt.name) { vm.respondPermission(optionId: opt.optionId) }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                }
+            }
+        }
+    }
+    
     // MARK: - Models
     
     static let availableModels: [(String, String)] = [
@@ -365,4 +360,12 @@ struct LiveChatMessageView: View, Equatable {
         }
         .padding(.horizontal)
     }
+}
+
+// MARK: - Permission Option Helper
+
+private struct PermOption: Identifiable {
+    let id = UUID()
+    let optionId: String
+    let name: String
 }
