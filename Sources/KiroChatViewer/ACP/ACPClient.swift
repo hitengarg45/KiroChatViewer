@@ -7,6 +7,7 @@ enum ACPEvent {
     case turnEnd
     case error(String)
     case permissionRequest(id: String, toolName: String, options: [(id: String, name: String)])
+    case contextUpdate(percentage: Double)
 }
 
 enum ACPState: Equatable {
@@ -34,7 +35,11 @@ class ACPClient: ObservableObject, ACPProviding {
     }
     
     private func log(_ msg: String) {
-        AppLogger.acp.info("\(msg)")
+        AppLogger.acp.info(msg)
+    }
+    
+    private func logDebug(_ msg: String) {
+        AppLogger.acp.debug(msg)
     }
     
     // MARK: - Connect
@@ -168,6 +173,28 @@ class ACPClient: ObservableObject, ACPProviding {
         send(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": sid]])
     }
     
+    func setModel(_ model: String) {
+        guard let sid = sessionId else { return }
+        send([
+            "jsonrpc": "2.0",
+            "id": nextId(),
+            "method": "session/set_model",
+            "params": ["sessionId": sid, "modelId": model] as [String: Any]
+        ])
+        log("ACP: set model to \(model)")
+    }
+    
+    func executeCommand(_ command: String) {
+        guard let sid = sessionId else { return }
+        send([
+            "jsonrpc": "2.0",
+            "id": nextId(),
+            "method": "_kiro.dev/commands/execute",
+            "params": ["sessionId": sid, "command": command] as [String: Any]
+        ])
+        logDebug("ACP: execute command \(command)")
+    }
+    
     func respondPermission(requestId: String, optionId: String) {
         send([
             "jsonrpc": "2.0",
@@ -202,12 +229,8 @@ class ACPClient: ObservableObject, ACPProviding {
         str += "\n"
         guard let writeData = str.data(using: .utf8) else { return }
         stdinHandle?.write(writeData)
-        // Debug: log what we actually sent
-        let debugLine = "ACP SENT: \(str.prefix(500))"
-        if let logData = debugLine.data(using: .utf8) {
-            let logFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/KiroChatViewer/acp_debug.log")
-            if let fh = try? FileHandle(forWritingTo: logFile) { fh.seekToEndOfFile(); fh.write(logData); fh.closeFile() }
-        }
+        self.log("ACP SENT: \(str.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300))")
+        logDebug("ACP SENT FULL: \(str.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
     
     // MARK: - Process Messages
@@ -220,18 +243,10 @@ class ACPClient: ObservableObject, ACPProviding {
         let hasError = json["error"] != nil
         self.log("ACP RECV: method=\(method ?? "nil") id=\(id ?? -1) result=\(hasResult) error=\(hasError)")
         
-        // Debug: print raw message for troubleshooting
+        // Debug: full payload
         if let data = try? JSONSerialization.data(withJSONObject: json, options: []),
            let str = String(data: data, encoding: .utf8) {
-            let logLine = "ACP RAW: \(str.prefix(500))\n"
-            if let logData = logLine.data(using: .utf8) {
-                let logFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/KiroChatViewer/acp_debug.log")
-                if FileManager.default.fileExists(atPath: logFile.path) {
-                    if let fh = try? FileHandle(forWritingTo: logFile) { fh.seekToEndOfFile(); fh.write(logData); fh.closeFile() }
-                } else {
-                    try? logData.write(to: logFile)
-                }
-            }
+            logDebug("ACP RECV FULL: \(str)")
         }
         
         // Response with result
@@ -311,6 +326,14 @@ class ACPClient: ObservableObject, ACPProviding {
             default:
                 self.log("ACP: update type=\(sessionUpdate)")
             }
+            return
+        }
+        
+        // Kiro extensions
+        if method == "_kiro.dev/metadata",
+           let params = json["params"] as? [String: Any],
+           let pct = params["contextUsagePercentage"] as? Double {
+            eventSubject.send(.contextUpdate(percentage: pct))
             return
         }
         

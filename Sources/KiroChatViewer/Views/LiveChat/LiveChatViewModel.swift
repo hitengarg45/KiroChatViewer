@@ -6,10 +6,12 @@ class LiveChatViewModel: ObservableObject {
     @Published var inputText = ""
     @Published var isConnected = false
     @Published var isStreaming = false
-    @Published var currentModel = "qwen3-coder-480b"
+    @Published var currentModel = "auto"
     @Published var workingDirectory = NSHomeDirectory()
     @Published var error: String?
     @Published var pendingPermission: (id: String, toolName: String, options: [(id: String, name: String)])?
+    @Published var contextUsage: Double = 0
+    @Published var trustAllTools = false
     
     let client = ACPClient()
     private var cancellables = Set<AnyCancellable>()
@@ -32,6 +34,13 @@ class LiveChatViewModel: ObservableObject {
     func connect() {
         AppLogger.ui.info("LiveChat: connecting to \(self.workingDirectory)")
         client.connect(cwd: workingDirectory)
+    }
+    
+    func setModel(_ model: String) {
+        currentModel = model
+        if isConnected {
+            client.setModel(model)
+        }
     }
     
     func send() {
@@ -96,7 +105,16 @@ class LiveChatViewModel: ObservableObject {
             
         case .permissionRequest(let id, let toolName, let options):
             AppLogger.ui.info("LiveChat: permission request for \(toolName)")
-            pendingPermission = (id: id, toolName: toolName, options: options)
+            if trustAllTools {
+                let allowOpt = options.first(where: { $0.id.contains("allow") })?.id ?? "allow_once"
+                AppLogger.ui.info("LiveChat: auto-approved \(toolName) (autopilot)")
+                client.respondPermission(requestId: id, optionId: allowOpt)
+            } else {
+                pendingPermission = (id: id, toolName: toolName, options: options)
+            }
+            
+        case .contextUpdate(let pct):
+            contextUsage = pct
         }
     }
 }

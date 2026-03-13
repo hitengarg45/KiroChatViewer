@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var expandedDirectories: Set<String> = []
     @State private var showTimeline = false
     @State private var showPerformance = false
+    @State private var showDebugConsole = false
     @State private var showBackupConfirm = false
     @State private var hasTriggeredBackup = false
     @State private var showLiveChat = false
@@ -243,6 +244,9 @@ struct ContentView: View {
                         Button { showPerformance = true } label: {
                             Label("Performance", systemImage: "speedometer")
                         }
+                        Button { showDebugConsole = true } label: {
+                            Label("Debug Console", systemImage: "terminal")
+                        }
                         Divider()
                         Button { showBackupConfirm = true } label: {
                             Label("Backup Now", systemImage: "externaldrive.badge.plus")
@@ -302,28 +306,39 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            if showLiveChat {
-                LiveChatView()
-                    .toolbar {
-                        ToolbarItem(placement: .automatic) {
-                            Button { showLiveChat = false } label: {
-                                Label("Back to Viewer", systemImage: "list.bullet")
+            VStack(spacing: 0) {
+                // Main detail area
+                Group {
+                    if showLiveChat {
+                        LiveChatView()
+                            .toolbar {
+                                ToolbarItem(placement: .automatic) {
+                                    Button { showLiveChat = false } label: {
+                                        Label("Back to Viewer", systemImage: "list.bullet")
+                                    }
+                                    .help("Return to conversation viewer")
+                                }
                             }
-                            .help("Return to conversation viewer")
-                        }
+                    } else if let selected = selectedConversation,
+                       let conv = db.conversations.first(where: { $0.id == selected.id }) ?? selectedConversation {
+                        ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
+                            .environmentObject(db)
+                            .environmentObject(titles)
+                            .id(conv.id)
+                            .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
+                    } else {
+                        Text("Select a conversation")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
                     }
-            } else if let selected = selectedConversation,
-               let conv = db.conversations.first(where: { $0.id == selected.id }) ?? selectedConversation {
-                ConversationDetailView(conversation: conv, selectedConversation: $selectedConversation)
-                    .environmentObject(db)
-                    .environmentObject(titles)
-                    .id(conv.id)
-                    .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
-            } else {
-                Text("Select a conversation")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color.clear)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                // Bottom debug drawer
+                if showDebugConsole {
+                    DebugDrawer(isShowing: $showDebugConsole)
+                }
             }
         }
         .environmentObject(bookmarks)

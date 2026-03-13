@@ -74,9 +74,40 @@ struct LiveChatView: View {
             Spacer()
             
             if vm.isConnected {
+                // Trust mode toggle
+                Button {
+                    vm.trustAllTools.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: vm.trustAllTools ? "bolt.shield.fill" : "shield.lefthalf.filled")
+                            .font(.caption)
+                        Text(vm.trustAllTools ? "Autopilot" : "Supervised")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(vm.trustAllTools ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .help(vm.trustAllTools ? "All tools auto-approved" : "Tools require approval")
+                
+                // Context usage
+                if vm.contextUsage > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "brain")
+                            .font(.system(size: 9))
+                        Text("\(Int(vm.contextUsage))%")
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    .foregroundStyle(vm.contextUsage > 80 ? .red : vm.contextUsage > 50 ? .orange : .secondary)
+                    .help("Context window usage: \(Int(vm.contextUsage))%")
+                }
+                
+                // Model picker
                 Menu {
                     ForEach(Self.availableModels, id: \.0) { id, label in
-                        Button(label) { vm.currentModel = id }
+                        Button(label) { vm.setModel(id) }
                     }
                 } label: {
                     Label(vm.currentModel, systemImage: "cpu")
