@@ -18,6 +18,7 @@ final class LogBuffer: ObservableObject {
     
     @Published private(set) var entries: [LogEntry] = []
     private let lock = NSLock()
+    private let fileLock = NSLock()
     private let maxEntries = 2000
     
     // File logging
@@ -83,8 +84,8 @@ final class LogBuffer: ObservableObject {
     }
     
     private func writeToFile(_ data: Data) {
-        lock.lock()
-        defer { lock.unlock() }
+        fileLock.lock()
+        defer { fileLock.unlock() }
         
         fileHandle?.write(data)
         currentLogSize += UInt64(data.count)

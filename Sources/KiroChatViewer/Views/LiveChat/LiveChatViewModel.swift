@@ -20,8 +20,15 @@ class LiveChatViewModel: ObservableObject {
         client.$state
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
-                self?.isConnected = state == .ready || state == .chatting
-                self?.isStreaming = state == .chatting
+                guard let self else { return }
+                let wasConnected = self.isConnected
+                self.isConnected = state == .ready || state == .chatting
+                self.isStreaming = state == .chatting
+                // Notify if connection dropped unexpectedly
+                if wasConnected && state == .disconnected {
+                    self.error = "Connection to Kiro lost"
+                    AppLogger.ui.error("LiveChat: connection dropped")
+                }
             }
             .store(in: &cancellables)
         

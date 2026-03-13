@@ -211,11 +211,16 @@ class ACPClient: ObservableObject, ACPProviding {
     
     func disconnect() {
         process?.terminate()
+        process?.waitUntilExit()
         process = nil
         stdinHandle = nil
         state = .disconnected
         sessionId = nil
         requestId = 0
+    }
+    
+    deinit {
+        process?.terminate()
     }
     
     // MARK: - Send
