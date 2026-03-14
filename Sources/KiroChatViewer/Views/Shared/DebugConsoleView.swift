@@ -11,6 +11,8 @@ struct DebugDrawer: View {
     @State private var searchText = ""
     @State private var autoScroll = true
     @State private var isDragging = false
+    @State private var isHoveringDragHandle = false
+    @State private var dragHoverTask: Task<Void, Never>?
     
     private let minHeight: CGFloat = 120
     private let maxHeight: CGFloat = 500
@@ -56,7 +58,12 @@ struct DebugDrawer: View {
             }
         }
         .frame(height: drawerHeight)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.15), lineWidth: 1))
         .transition(.move(edge: .bottom))
     }
     
@@ -64,10 +71,10 @@ struct DebugDrawer: View {
     
     private var dragHandle: some View {
         VStack(spacing: 0) {
-            // Draggable divider
+            // Draggable divider — hidden until hovered/dragged
             Rectangle()
-                .fill(isDragging ? Color.accentColor : Color.secondary.opacity(0.3))
-                .frame(height: 3)
+                .fill(isDragging ? Color.accentColor : isHoveringDragHandle ? Color.secondary.opacity(0.4) : Color.clear)
+                .frame(height: isDragging || isHoveringDragHandle ? 3 : 1)
                 .contentShape(Rectangle().size(width: 10000, height: 12))
                 .gesture(
                     DragGesture()
@@ -81,8 +88,15 @@ struct DebugDrawer: View {
                 .onHover { hovering in
                     if hovering {
                         NSCursor.resizeUpDown.push()
+                        dragHoverTask = Task {
+                            try? await Task.sleep(nanoseconds: 800_000_000)
+                            guard !Task.isCancelled else { return }
+                            withAnimation(.easeIn(duration: 0.15)) { isHoveringDragHandle = true }
+                        }
                     } else {
                         NSCursor.pop()
+                        dragHoverTask?.cancel()
+                        withAnimation(.easeOut(duration: 0.1)) { isHoveringDragHandle = false }
                     }
                 }
             

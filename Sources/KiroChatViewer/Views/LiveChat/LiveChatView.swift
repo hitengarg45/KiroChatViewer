@@ -128,22 +128,30 @@ struct LiveChatView: View {
     // MARK: - Connect View
     
     private var connectView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "bubble.left.and.text.bubble.right")
-                .font(.system(size: 48))
-                .foregroundStyle(.purple.opacity(0.5))
             
-            Text("Start a Live Chat")
-                .font(.title2)
-                .fontWeight(.semibold)
+            Image(systemName: "bolt.horizontal.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.purple.opacity(0.3))
             
-            Text("Chat with Kiro directly in the app")
-                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                Text("Live Chat")
+                    .font(.title)
+                    .fontWeight(.bold)
+                Text("Chat with Kiro directly in the app")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Working Directory").font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Working Directory")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HStack {
+                    Image(systemName: "folder.fill")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
                     Text(vm.workingDirectory)
                         .font(.system(.caption, design: .monospaced))
                         .lineLimit(1)
@@ -159,11 +167,12 @@ struct LiveChatView: View {
                     }
                     .controlSize(.small)
                 }
-                .padding(8)
+                .padding(10)
                 .background(Color.secondary.opacity(0.05))
-                .cornerRadius(6)
+                .cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1)))
             }
-            .frame(maxWidth: 400)
+            .frame(maxWidth: 420)
             
             Button {
                 vm.connect()

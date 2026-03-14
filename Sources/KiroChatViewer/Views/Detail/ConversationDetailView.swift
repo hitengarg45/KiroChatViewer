@@ -12,7 +12,6 @@ struct ConversationDetailView: View {
     @State private var isReloading = false
     @State private var displayedConversation: Conversation?
     @State private var isAtBottom = true
-    @State private var terminalHeight: CGFloat = 300
     @ObservedObject private var terminalManager = TerminalSessionManager.shared
     @EnvironmentObject var db: DatabaseManager
     @ObservedObject private var theme = ThemeManager.shared
@@ -29,6 +28,45 @@ struct ConversationDetailView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Inline action bar
+            HStack(spacing: 8) {
+                Text(displayTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                Button {
+                    withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
+                    isReloading = true
+                    Task {
+                        if let updated = await db.reloadConversation(id: conv.id) {
+                            if let idx = db.conversations.firstIndex(where: { $0.id == updated.id }) {
+                                db.conversations[idx] = updated
+                            }
+                            displayedConversation = updated
+                            selectedConversation = updated
+                        }
+                        isReloading = false
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 13))
+                }
+                .buttonStyle(.plain).foregroundStyle(.primary.opacity(0.6))
+                .rotationEffect(.degrees(rotationAngle)).help("Refresh")
+                
+                Button {
+                    exportDocument = TextDocument(text: generateMarkdown())
+                    showExporter = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 13))
+                }
+                .buttonStyle(.plain).foregroundStyle(.primary.opacity(0.6)).help("Export")
+            }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            
+            Divider()
+            
             ZStack {
                 ScrollViewReader { proxy in
                 ScrollView {
@@ -47,17 +85,40 @@ struct ConversationDetailView: View {
                         }
                         
                         // Header (visually at top)
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text(displayTitle)
-                                .font(.title)
-                            Text(conv.directory)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("Updated: \(conv.updatedAt.formatted())")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            HStack(spacing: 12) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.blue)
+                                    Text(conv.directory.split(separator: "/").last.map(String.init) ?? conv.directory)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                HStack(spacing: 4) {
+                                    Image(systemName: "clock")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(conv.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                HStack(spacing: 4) {
+                                    Image(systemName: "message")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text("\(conv.messageCount) messages")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
-                        .padding()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .scaleEffect(x: 1, y: -1)
                     }
                     .padding(.bottom, 40)
@@ -89,47 +150,13 @@ struct ConversationDetailView: View {
                 }
             } // ZStack
             
-            // Embedded terminal or Continue button
-            if terminalManager.isActive(conv.id) {
-                terminalPanel
-            } else {
+            // Continue in Terminal button (terminal panel is now outside detail view)
+            if !terminalManager.isActive(conv.id) {
                 continueButton
             }
         } // VStack
         .onAppear {
             displayedConversation = conversation
-        }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    withAnimation(.linear(duration: 0.5)) { rotationAngle += 360 }
-                    isReloading = true
-                    Task {
-                        if let updated = await db.reloadConversation(id: conv.id) {
-                            if let idx = db.conversations.firstIndex(where: { $0.id == updated.id }) {
-                                db.conversations[idx] = updated
-                            }
-                            displayedConversation = updated
-                            selectedConversation = updated
-                        }
-                        isReloading = false
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .rotationEffect(.degrees(rotationAngle))
-                .help("Refresh conversation")
-            }
-            
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    exportDocument = TextDocument(text: generateMarkdown())
-                    showExporter = true
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
-                }
-                .help("Export as Markdown")
-            }
         }
         .fileExporter(
             isPresented: $showExporter,
@@ -160,95 +187,6 @@ struct ConversationDetailView: View {
             Button("OK") { exportError = nil }
         } message: {
             Text(exportError ?? "Unknown error")
-        }
-    }
-    
-    @State private var isDraggingTerminal = false
-    
-    private var terminalPanel: some View {
-        VStack(spacing: 0) {
-            // Drag handle (only when not minimized)
-            if !terminalManager.isMinimized(conv.id) {
-                Rectangle()
-                    .fill(isDraggingTerminal ? Color.purple : Color.secondary.opacity(0.3))
-                    .frame(height: 3)
-                    .contentShape(Rectangle().size(width: 10000, height: 12))
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                isDraggingTerminal = true
-                                terminalHeight = max(150, min(600, terminalHeight - value.translation.height))
-                            }
-                            .onEnded { _ in isDraggingTerminal = false }
-                    )
-                    .onHover { h in if h { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
-            }
-            
-            // Terminal container
-            VStack(spacing: 0) {
-                // Header
-                HStack(spacing: 8) {
-                    Image(systemName: "terminal.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.purple)
-                    Text("Terminal")
-                        .font(.system(size: 11, weight: .semibold))
-                    
-                    Text(conv.directory.split(separator: "/").last.map(String.init) ?? "")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    // Minimize
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { terminalManager.toggleMinimize(conv.id) }
-                    } label: {
-                        Image(systemName: terminalManager.isMinimized(conv.id) ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                    }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help(terminalManager.isMinimized(conv.id) ? "Expand" : "Minimize")
-                    
-                    // Resize
-                    if !terminalManager.isMinimized(conv.id) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { terminalHeight = terminalHeight < 400 ? 500 : 250 }
-                        } label: {
-                            Image(systemName: terminalHeight < 400 ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
-                                .font(.system(size: 9))
-                        }
-                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Toggle size")
-                    }
-                    
-                    // Close
-                    Button { terminalManager.closeSession(id: conv.id) } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                    }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Close terminal")
-                }
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                
-                // Terminal content (hidden when minimized)
-                if !terminalManager.isMinimized(conv.id) {
-                    Divider()
-                    
-                    if let tv = terminalManager.terminalView(for: conv.id) {
-                        EmbeddedTerminalView(terminalView: tv)
-                            .frame(height: terminalHeight)
-                            .padding(.leading, 4)
-                    }
-                }
-            }
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-            )
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
         }
     }
     
