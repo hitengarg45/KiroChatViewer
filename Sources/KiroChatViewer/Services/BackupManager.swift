@@ -31,7 +31,10 @@ class BackupManager: ObservableObject {
     
     init() { refreshBackupList() }
     
-    var latestBackupURL: URL? { existingBackups().first }
+    var latestBackupURL: URL? { existingBackupURLs.first }
+    
+    /// All backup file URLs, newest first
+    var existingBackupURLs: [URL] { existingBackups() }
     
     // MARK: - Backup
     

@@ -127,21 +127,29 @@ class DatabaseManager: ObservableObject, DatabaseProviding {
     func deleteConversation(_ conversation: Conversation) {
         // Remove from UI immediately
         conversations.removeAll { $0.id == conversation.id }
-        // Delete from DB on background
+        // Delete from primary DB and all backups on background
         let dbPath = self.dbPath
         let convId = conversation.id
+        let backupURLs = BackupManager.shared.existingBackupURLs
         Task.detached(priority: .utility) {
-            do {
-                let db = try Connection(dbPath.path)
-                let table = Table("conversations_v2")
-                let conversationId = Expression<String>("conversation_id")
-                try db.run(table.filter(conversationId == convId).delete())
-            } catch {
-                AppLogger.db.error("Delete failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.error = "Delete failed: \(error.localizedDescription)"
-                }
+            // Delete from primary DB
+            Self.deleteFromDB(path: dbPath.path, conversationId: convId)
+            // Delete from all backup DBs
+            for url in backupURLs {
+                Self.deleteFromDB(path: url.path, conversationId: convId)
             }
+            AppLogger.db.info("Deleted conversation \(convId) from primary DB and \(backupURLs.count) backups")
+        }
+    }
+    
+    private static func deleteFromDB(path: String, conversationId: String) {
+        do {
+            let db = try Connection(path)
+            let table = Table("conversations_v2")
+            let convIdCol = Expression<String>("conversation_id")
+            try db.run(table.filter(convIdCol == conversationId).delete())
+        } catch {
+            AppLogger.db.error("Delete from \(path) failed: \(error.localizedDescription)")
         }
     }
 }
