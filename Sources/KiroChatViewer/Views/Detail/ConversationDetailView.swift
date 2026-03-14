@@ -12,6 +12,8 @@ struct ConversationDetailView: View {
     @State private var isReloading = false
     @State private var displayedConversation: Conversation?
     @State private var isAtBottom = true
+    @State private var terminalHeight: CGFloat = 300
+    @ObservedObject private var terminalManager = TerminalSessionManager.shared
     @EnvironmentObject var db: DatabaseManager
     @ObservedObject private var theme = ThemeManager.shared
     @Binding var selectedConversation: Conversation?
@@ -87,26 +89,12 @@ struct ConversationDetailView: View {
                 }
             } // ZStack
             
-            // Fixed bottom bar — always visible
-            Divider()
-            HStack {
-                Spacer()
-                Button(action: continueInTerminal) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "terminal.fill")
-                            .font(.system(size: 14))
-                        Text("Continue in Terminal")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.purple, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                Spacer()
+            // Embedded terminal or Continue button
+            if terminalManager.isActive(conv.id) {
+                terminalPanel
+            } else {
+                continueButton
             }
-            .padding(.vertical, 8)
         } // VStack
         .onAppear {
             displayedConversation = conversation
@@ -175,46 +163,128 @@ struct ConversationDetailView: View {
         }
     }
     
+    @State private var isDraggingTerminal = false
+    
+    private var terminalPanel: some View {
+        VStack(spacing: 0) {
+            // Drag handle (only when not minimized)
+            if !terminalManager.isMinimized(conv.id) {
+                Rectangle()
+                    .fill(isDraggingTerminal ? Color.purple : Color.secondary.opacity(0.3))
+                    .frame(height: 3)
+                    .contentShape(Rectangle().size(width: 10000, height: 12))
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                isDraggingTerminal = true
+                                terminalHeight = max(150, min(600, terminalHeight - value.translation.height))
+                            }
+                            .onEnded { _ in isDraggingTerminal = false }
+                    )
+                    .onHover { h in if h { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
+            }
+            
+            // Terminal container
+            VStack(spacing: 0) {
+                // Header
+                HStack(spacing: 8) {
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.purple)
+                    Text("Terminal")
+                        .font(.system(size: 11, weight: .semibold))
+                    
+                    Text(conv.directory.split(separator: "/").last.map(String.init) ?? "")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    // Minimize
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { terminalManager.toggleMinimize(conv.id) }
+                    } label: {
+                        Image(systemName: terminalManager.isMinimized(conv.id) ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).help(terminalManager.isMinimized(conv.id) ? "Expand" : "Minimize")
+                    
+                    // Resize
+                    if !terminalManager.isMinimized(conv.id) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { terminalHeight = terminalHeight < 400 ? 500 : 250 }
+                        } label: {
+                            Image(systemName: terminalHeight < 400 ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+                                .font(.system(size: 9))
+                        }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Toggle size")
+                    }
+                    
+                    // Close
+                    Button { terminalManager.closeSession(id: conv.id) } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Close terminal")
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                
+                // Terminal content (hidden when minimized)
+                if !terminalManager.isMinimized(conv.id) {
+                    Divider()
+                    
+                    if let tv = terminalManager.terminalView(for: conv.id) {
+                        EmbeddedTerminalView(terminalView: tv)
+                            .frame(height: terminalHeight)
+                            .padding(.leading, 4)
+                    }
+                }
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            )
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+        }
+    }
+    
+    private var continueButton: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                Spacer()
+                Button { terminalManager.startSession(id: conv.id, directory: conv.directory, command: resumeCommand) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "terminal.fill").font(.system(size: 14))
+                        Text("Continue in Terminal").font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    .background(Color.purple, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
     private func shellEscape(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
     
-    private func continueInTerminal() {
-        let dir = conv.directory
-        let sessionId = conv.id
+    /// Command that updates updated_at for this conversation then resumes it.
+    /// Uses a timestamp slightly in the future to minimize race conditions with
+    /// concurrent kiro-cli sessions updating the same directory.
+    /// See Docs/TERMINAL_RESUME_HISTORY.md for alternative approaches.
+    private var resumeCommand: String {
         let dbPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/kiro-cli/data.sqlite3").path
-        
-        let tmpScript = "/tmp/kiro_resume_\(sessionId.prefix(8)).sh"
-        let script = """
-        #!/bin/bash
-        sqlite3 \(shellEscape(dbPath)) "UPDATE conversations_v2 SET updated_at = CAST(strftime('%s','now') * 1000 AS INTEGER) WHERE conversation_id = \(shellEscape(sessionId))"
-        cd \(shellEscape(dir))
-        rm -f \(shellEscape(tmpScript))
-        exec kiro-cli chat --resume
-        """
-        try? script.write(toFile: tmpScript, atomically: true, encoding: .utf8)
-        
-        Task.detached(priority: .userInitiated) {
-            let chmod = Process()
-            chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
-            chmod.arguments = ["+x", tmpScript]
-            try? chmod.run()
-            chmod.waitUntilExit()
-            
-            await MainActor.run {
-                let appleScript = """
-                tell application "Terminal"
-                    activate
-                    do script "'\(tmpScript)'"
-                end tell
-                """
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-                proc.arguments = ["-e", appleScript]
-                try? proc.run()
-            }
-        }
+        return "sqlite3 \(shellEscape(dbPath)) \"UPDATE conversations_v2 SET updated_at = (CAST(strftime('%s','now') AS INTEGER) + 30) * 1000 WHERE conversation_id = \(shellEscape(conv.id))\" && exec kiro-cli chat --resume"
     }
     
     private func generateMarkdown() -> String {
