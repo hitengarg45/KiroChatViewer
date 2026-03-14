@@ -180,6 +180,7 @@ struct AppearanceSettings: View {
         theme.messageFontSize = pendingMsgFontSize; theme.toolDisplayMode = pendingToolMode
         theme.terminalStyle = pendingTerminalStyle; theme.diffStyle = pendingDiffStyle
         hasChanges = false
+        TerminalSessionManager.shared.applyTheme()
     }
     private var previewTheme: AppTheme {
         if !pendingCustomThemeId.isEmpty,

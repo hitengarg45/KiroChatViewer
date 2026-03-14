@@ -4,7 +4,7 @@ import MarkdownUI
 
 // MARK: - Terminal Color Palette (static, no per-render parsing)
 
-private enum TerminalPalette {
+enum TerminalPalette {
     static let itermBg = Color(hex: "#1E1E2E")
     static let itermFg = Color(hex: "#CDD6F4")
     static let itermPrompt = Color(hex: "#89B4FA")

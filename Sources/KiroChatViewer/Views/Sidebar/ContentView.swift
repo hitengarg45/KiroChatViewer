@@ -394,6 +394,7 @@ struct ContentView: View {
                                 ForEach(group.conversations) { conv in
                                     ConversationRow(conversation: conv, isSelected: selectedConversation?.id == conv.id, indented: true, bookmarks: bookmarks, titles: titles, onDelete: {
                                         if selectedConversation?.id == conv.id { selectedConversation = nil }
+                                        TerminalSessionManager.shared.closeSession(id: conv.id)
                                         db.deleteConversation(conv)
                                     }).tag(conv).listRowSeparator(group.conversations.count > 1 ? .visible : .hidden)
                                 }
@@ -431,6 +432,7 @@ struct ContentView: View {
                 List(cachedFiltered, selection: $selectedConversation) { conv in
                     ConversationRow(conversation: conv, isSelected: selectedConversation?.id == conv.id, bookmarks: bookmarks, titles: titles, onDelete: {
                         if selectedConversation?.id == conv.id { selectedConversation = nil }
+                        TerminalSessionManager.shared.closeSession(id: conv.id)
                         db.deleteConversation(conv)
                     }).tag(conv)
                 }
