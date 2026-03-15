@@ -52,7 +52,7 @@ struct ContentView: View {
             if themeManager.usesCustomColors {
                 window.backgroundColor = NSColor(themeManager.activeTheme.background)
             } else {
-                window.backgroundColor = NSColor.underPageBackgroundColor
+                window.backgroundColor = NSColor.windowBackgroundColor
             }
             window.titlebarAppearsTransparent = true
         }
@@ -137,7 +137,7 @@ struct ContentView: View {
     
     private var bodyContent: some View {
         mainLayout
-            .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color(nsColor: .underPageBackgroundColor))
+            .background(themeManager.usesCustomColors ? themeManager.activeTheme.background : Color(nsColor: .windowBackgroundColor))
             .overlay(alignment: .bottomTrailing) { toastOverlay }
             .environmentObject(bookmarks)
             .searchable(text: $searchText, placement: .toolbar, prompt: "Search conversations")
@@ -218,7 +218,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(themeManager.usesCustomColors ? themeManager.activeTheme.sidebar : Color(nsColor: .textBackgroundColor))
+                            .fill(themeManager.usesCustomColors ? AnyShapeStyle(themeManager.activeTheme.sidebar) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 
@@ -343,7 +343,7 @@ struct ContentView: View {
                 topLeadingRadius: 8, bottomLeadingRadius: 8,
                 bottomTrailingRadius: sidebarVisible ? 0 : 8, topTrailingRadius: sidebarVisible ? 0 : 8
             )
-            .fill(themeManager.usesCustomColors ? themeManager.activeTheme.sidebar : Color(nsColor: .controlBackgroundColor))
+            .fill(themeManager.usesCustomColors ? AnyShapeStyle(themeManager.activeTheme.sidebar) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
         )
         .clipShape(
             UnevenRoundedRectangle(
@@ -444,7 +444,7 @@ struct ContentView: View {
                 topLeadingRadius: 0, bottomLeadingRadius: 0,
                 bottomTrailingRadius: 8, topTrailingRadius: 8
             )
-            .fill(themeManager.usesCustomColors ? themeManager.activeTheme.sidebar : Color(nsColor: .controlBackgroundColor))
+            .fill(themeManager.usesCustomColors ? AnyShapeStyle(themeManager.activeTheme.sidebar) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
         )
         .clipShape(
             UnevenRoundedRectangle(
@@ -546,9 +546,8 @@ struct ContentView: View {
                     }
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 8).fill(themeManager.usesCustomColors ? themeManager.activeTheme.sidebar : Color(nsColor: .textBackgroundColor)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(themeManager.usesCustomColors ? AnyShapeStyle(themeManager.activeTheme.sidebar) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor))))
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.15), lineWidth: 1))
         }
     }
     
