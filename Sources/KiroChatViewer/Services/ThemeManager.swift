@@ -83,7 +83,12 @@ class ThemeManager: ObservableObject {
             let bg = activeTheme.backgroundHex
             let hex = bg.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
             var int: UInt64 = 0; Scanner(string: hex).scanHexInt64(&int)
-            let brightness = (Double((int >> 16) & 0xFF) + Double((int >> 8) & 0xFF) + Double(int & 0xFF)) / (255 * 3)
+            let brightness: Double = {
+                let r = Double((int >> 16) & 0xFF)
+                let g = Double((int >> 8) & 0xFF)
+                let b = Double(int & 0xFF)
+                return (r + g + b) / (255.0 * 3.0)
+            }()
             return brightness < 0.5 ? .dark : .light
         }
         switch mode {

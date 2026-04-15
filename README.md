@@ -2,9 +2,9 @@
 
 A native macOS application to view and search your Kiro CLI chat conversations.
 
-## Current Version: 3.6.0
+## Current Version: 3.6.1
 
-[Download Latest Release](Releases/KiroChatViewer-v3.6.0.dmg)
+[Download Latest Release](Releases/KiroChatViewer-v3.6.1.dmg)
 
 ## Features
 
@@ -50,7 +50,7 @@ A native macOS application to view and search your Kiro CLI chat conversations.
 
 ### Quick Install
 
-1. Download `KiroChatViewer-v3.6.0.dmg` from [Releases](Releases/)
+1. Download `KiroChatViewer-v3.6.1.dmg` from [Releases](Releases/)
 2. Open the DMG file
 3. Drag KiroChatViewer to your Applications folder (or double-click to run directly)
 4. Launch from Applications or Spotlight
@@ -116,6 +116,31 @@ hdiutil create -volname "KiroChatViewer v1.0.0" -srcfolder KiroChatViewer.app -o
 ```
 
 ## Release Notes
+
+### Version 3.6.1 (2026-04-15)
+
+**Embedded Terminal, ACP Sessions & Live Chat**
+
+New Features:
+- ✅ Embedded terminal: resume conversations inside the app with persistent sessions
+- ✅ Terminal session management: minimize, resize, theme-aware, survives conversation switches
+- ✅ ACP session viewer: browse sessions from ~/.kiro/sessions/cli/ with event timeline
+- ✅ Terminal/ACP source switcher in sidebar
+- ✅ Full model list: 18+ models (Claude, DeepSeek, Kimi, MiniMax, GLM, Qwen, AGI Nova)
+- ✅ Tool approval system: approve/reject tool calls with native UI
+- ✅ Autopilot mode: auto-approve all tools for trusted workflows
+- ✅ Context usage indicator showing context window percentage
+- ✅ Debug console: bottom drawer with category/level filtering, search, auto-scroll
+- ✅ File logging: rotating logs (5MB × 3 files) at ~/Library/Application Support/KiroChatViewer/logs/
+
+Bug Fixes:
+- ✅ Delete conversation now purges from all backup DBs
+- ✅ Removed dead code (unused MarkdownCache, ContinueInTerminalButton)
+
+Technical:
+- SwiftTerm dependency for embedded terminal
+- ACP protocol: initialize → session/new → session/prompt with streaming
+- Dual logging: os.log + rotating file output
 
 ### Version 3.6.0 (2026-03-13)
 
